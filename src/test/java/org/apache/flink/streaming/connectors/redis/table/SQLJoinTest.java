@@ -18,6 +18,8 @@
 
 package org.apache.flink.streaming.connectors.redis.table;
 
+import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_COMMAND;
+
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.redis.command.RedisCommand;
 import org.apache.flink.streaming.connectors.redis.table.base.TestRedisConfigBase;
@@ -26,8 +28,6 @@ import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.commons.util.Preconditions;
-
-import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_COMMAND;
 
 /**
  * @author Jeff Zou
@@ -415,5 +415,51 @@ public class SQLJoinTest extends TestRedisConfigBase {
         TableResult tableResult = tEnv.executeSql(sql);
         tableResult.getJobClient().get().getJobExecutionResult().get();
         Preconditions.condition(singleRedisCommands.zscore("test_sorted_set", "10") == 11, "");
+    }
+
+    @Test
+    public void testHgetFieldIsNullSQL2() throws Exception {
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+        EnvironmentSettings environmentSettings =
+                EnvironmentSettings.newInstance().inStreamingMode().build();
+        StreamTableEnvironment tEnv = StreamTableEnvironment.create(env, environmentSettings);
+        singleRedisCommands.del("test_hash", "test_hash2");
+        singleRedisCommands.hset("test_hash", "1", "2045-03-15 01:31:59.049000");
+        singleRedisCommands.hset("test_hash", "5", "2045-03-15 01:31:59.049000");
+        String dim =
+                "create table dim_table(name varchar, level varchar, age varchar) with ( 'connector'='redis', "
+                        + "'host'='"
+                        + REDIS_HOST
+                        + "','port'='"
+                        + REDIS_PORT
+                        + "', 'redis-mode'='single','password'='"
+                        + REDIS_PASSWORD
+                        + "','"
+                        + REDIS_COMMAND
+                        + "'='"
+                        + RedisCommand.HGET
+                        + "',   'lookup.cache.max-rows'='10', 'lookup.cache.ttl'='10', 'max.retries'='3'  )";
+
+        String source =
+                "create table source_table(username varchar, level varchar, proctime as procTime()) "
+                        + "with ('connector'='datagen',  'rows-per-second'='1', "
+                        + "'fields.username.kind'='sequence',  'fields.username.start'='1',  'fields.username.end'='9',"
+                        + "'fields.level.kind'='sequence',  'fields.level.start'='1',  'fields.level.end'='9'"
+                        + ")";
+
+        String sink =
+                "create table sink_table(username varchar, level varchar,age map<string, string>) with ('connector'='print' )";
+        tEnv.executeSql(source);
+        tEnv.executeSql(dim);
+        tEnv.executeSql(sink);
+
+        String sql =
+                " insert into sink_table "
+                        + " select 'test_hash', d.level, case when d.age is not null then map['result_code','1','end_time',cast(to_TIMESTAMP(d.age, 'yyyy-MM-dd HH:mm:ss') as varchar)] else map['result_code','0','end_time','0']  end from source_table s"
+                        + "  left join dim_table for system_time as of s.proctime as d "
+                        + " on d.name = 'test_hash' and d.level = s.level";
+        TableResult tableResult = tEnv.executeSql(sql);
+        tableResult.getJobClient().get().getJobExecutionResult().get();
     }
 }
