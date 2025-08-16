@@ -18,35 +18,31 @@
 
 package org.apache.flink.streaming.connectors.redis.datastream;
 
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.redis.command.RedisCommand;
 import org.apache.flink.streaming.connectors.redis.config.FlinkConfigBase;
 import org.apache.flink.streaming.connectors.redis.config.FlinkSingleConfig;
-import org.apache.flink.streaming.connectors.redis.mapper.RedisSinkMapper;
-import org.apache.flink.streaming.connectors.redis.mapper.RowRedisSinkMapper;
-import org.apache.flink.streaming.connectors.redis.table.RedisSinkFunction;
+import org.apache.flink.streaming.connectors.redis.mapper.RedisSinkRowMapper;
+import org.apache.flink.streaming.connectors.redis.mapper.RowRedisSinkRowMapper;
+import org.apache.flink.streaming.connectors.redis.stream.RedisSinkFunction;
 import org.apache.flink.streaming.connectors.redis.table.base.TestRedisConfigBase;
-import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.catalog.ResolvedSchema;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.data.binary.BinaryRowData;
-import org.apache.flink.table.data.writer.BinaryRowWriter;
-import org.apache.flink.table.types.DataType;
+import org.apache.flink.types.Row;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.commons.util.Preconditions;
 
 import java.util.Arrays;
 import java.util.List;
 
-import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.TTL;
-import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_COMMAND;
-import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_MODE;
-import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_SINGLE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.*;
 
-/** Created by jeff.zou on 2021/2/26. */
-public class DataStreamTest extends TestRedisConfigBase {
+/**
+ * Created by jeff.zou on 2021/2/26.
+ */
+public class DataSinkTest extends TestRedisConfigBase {
 
     @Test
     public void testDateStreamInsert() throws Exception {
@@ -58,23 +54,26 @@ public class DataStreamTest extends TestRedisConfigBase {
         configuration.setString(REDIS_COMMAND, RedisCommand.HSET.name());
 //        configuration.setInteger(TTL, 10);
 
-        RedisSinkMapper redisMapper = new RowRedisSinkMapper(RedisCommand.HSET, configuration);
+        RedisSinkRowMapper redisMapper = new RowRedisSinkRowMapper(RedisCommand.HSET, configuration);
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        BinaryRowData binaryRowData = new BinaryRowData(3);
-        BinaryRowWriter binaryRowWriter = new BinaryRowWriter(binaryRowData);
-        binaryRowWriter.writeString(0, StringData.fromString("tom"));
-        binaryRowWriter.writeString(1, StringData.fromString("math"));
-        binaryRowWriter.writeString(2, StringData.fromString("152"));
+        Row row = Row.withNames();
+        row.setField("name", "tom");
+        row.setField("subject", "math");
+        row.setField("scope", "222");
 
-        DataStream<BinaryRowData> dataStream = env.fromElements(binaryRowData, binaryRowData);
+        List<TypeInformation> columnDataTypes =
+                Arrays.asList(Types.STRING, Types.STRING, Types.STRING);
+        TypeInformation<Row> rowTypeInfo = Types.ROW_NAMED(
+                new String[]{"name", "subject", "scope"},
+                Types.STRING, Types.STRING, Types.STRING
+        );
 
-        List<String> columnNames = Arrays.asList("name", "subject", "scope");
-        List<DataType> columnDataTypes =
-                Arrays.asList(DataTypes.STRING(), DataTypes.STRING(), DataTypes.STRING());
-        ResolvedSchema resolvedSchema = ResolvedSchema.physical(columnNames, columnDataTypes);
-
+        DataStream<Row> dataStream = env.fromData(
+                Arrays.asList(row, row),
+                rowTypeInfo
+        );
         FlinkConfigBase conf =
                 new FlinkSingleConfig.Builder()
                         .setHost(REDIS_HOST)
@@ -83,12 +82,12 @@ public class DataStreamTest extends TestRedisConfigBase {
                         .build();
 
         RedisSinkFunction redisSinkFunction =
-                new RedisSinkFunction<>(conf, redisMapper, resolvedSchema, configuration);
+                new RedisSinkFunction<>(conf, redisMapper, columnDataTypes, configuration);
 
         dataStream.addSink(redisSinkFunction).setParallelism(1);
         env.execute("RedisSinkTest");
 
         Object hget = singleRedisCommands.hget("tom", "math");
-        Preconditions.condition(hget.equals("152"), "");
+        Preconditions.condition(hget.equals("222"), "");
     }
 }

@@ -438,7 +438,7 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
         StringBuilder stringBuilder = new StringBuilder();
         for (int i = 0; i < columnDataTypes.size(); i++) {
             stringBuilder.append(
-                    RedisRowConverter.rowToString(
+                    RedisRowConverter.rowDataToString(
                             columnDataTypes.get(i), row, i));
             if (i != columnDataTypes.size() - 1) {
                 stringBuilder.append(org.apache.flink.streaming.connectors.redis.table.RedisDynamicTableFactory.CACHE_SEPERATOR);

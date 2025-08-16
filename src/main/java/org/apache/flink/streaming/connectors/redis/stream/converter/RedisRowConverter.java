@@ -38,7 +38,7 @@ public class RedisRowConverter {
         return createDeserializer(fieldType).deserialize(result);
     }
 
-    public static String rowToString(TypeInformation<?> fieldType, Row row, Integer index) {
+    public static String rowDataToString(TypeInformation<?> fieldType, Row row, Integer index) {
         if (row.getField(index) == null) {
             return null;
         }
