@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.connectors.redis.container;
 
+import io.lettuce.core.KeyValue;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
@@ -230,11 +231,13 @@ public interface RedisCommandsContainer extends Serializable {
      */
     RedisFuture<String> get(String key);
 
-    /**
-     * Close the container.
-     *
-     * @throws IOException
-     */
+    RedisFuture<List<KeyValue>> mget(String keyPattern) throws Exception;
+
+        /**
+         * Close the container.
+         *
+         * @throws IOException
+         */
     void close() throws IOException;
 
     /**

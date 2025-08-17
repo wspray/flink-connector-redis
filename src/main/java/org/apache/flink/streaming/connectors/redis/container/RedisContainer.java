@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.connectors.redis.container;
 
+import io.lettuce.core.KeyValue;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
@@ -404,6 +405,23 @@ public class RedisContainer implements RedisCommandsContainer, Closeable {
                 LOG.error(
                         "Cannot send Redis message with command get to key {} error message {}",
                         key,
+                        e.getMessage());
+            }
+            throw e;
+        }
+    }
+
+    @Override
+    public RedisFuture<List<KeyValue>> mget(String keyPattern)  throws Exception{
+        try {
+            RedisFuture<List<String>> keys = asyncCommands.keys(keyPattern);
+            List<String> list = keys.get();
+            return asyncCommands.mget(list.toArray(new String[0]));
+        } catch (Exception e) {
+            if (LOG.isErrorEnabled()) {
+                LOG.error(
+                        "Cannot send Redis message with command mget to keyPattern {} error message {}",
+                        keyPattern,
                         e.getMessage());
             }
             throw e;

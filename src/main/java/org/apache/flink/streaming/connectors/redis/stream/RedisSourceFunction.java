@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.connectors.redis.stream;
 
+import io.lettuce.core.KeyValue;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
@@ -37,6 +38,7 @@ import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class RedisSourceFunction<T> extends RichSourceFunction<T> {
@@ -121,10 +123,30 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
         switch (redisCommand.getSelectCommand()) {
             case GET: {
                 String result = this.redisCommandsContainer.get(queryParameter[0]).get();
-                Row rowData =
+                Row row =
                         RedisResultWrapper.createRowDataForString(
                                 queryParameter, result, redisValueDataStructure, dataTypes);
-                ctx.collect(rowData);
+                //TODO
+                if (noKey(row)) {
+                    break;
+                }
+                ctx.collect(row);
+                break;
+            }
+            case MGET: {
+                List<KeyValue> results = this.redisCommandsContainer.mget(queryParameter[0]).get();
+                List<Row> rows = new ArrayList<>(results.size());
+                for (KeyValue keyValue : results) {
+                    Row row =
+                            RedisResultWrapper.createRowDataForString(
+                                    (String) keyValue.getKey(), (String) keyValue.getValue(), redisValueDataStructure, dataTypes);
+                    //TODO
+                    if (noKey(row)) {
+                        continue;
+                    }
+                    rows.add(row);
+                }
+                ctx.collect(rows);
                 break;
             }
             case HGET: {
@@ -132,10 +154,10 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                         this.redisCommandsContainer
                                 .hget(queryParameter[0], queryParameter[1])
                                 .get();
-                Row rowData =
+                Row row =
                         RedisResultWrapper.createRowDataForHash(
                                 queryParameter, result, redisValueDataStructure, dataTypes);
-                ctx.collect(rowData);
+                ctx.collect(row);
                 break;
             }
             case ZSCORE: {
@@ -143,10 +165,10 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                         this.redisCommandsContainer
                                 .zscore(queryParameter[0], queryParameter[1])
                                 .get();
-                Row rowData =
+                Row row =
                         RedisResultWrapper.createRowDataForSortedSet(
                                 queryParameter, result, dataTypes);
-                ctx.collect(rowData);
+                ctx.collect(row);
                 break;
             }
             case LRANGE: {
@@ -159,13 +181,13 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                                 .get();
                 list.forEach(
                         result -> {
-                            Row rowData =
+                            Row row =
                                     RedisResultWrapper.createRowDataForString(
                                             queryParameter,
                                             String.valueOf(result),
                                             redisValueDataStructure,
                                             dataTypes);
-                            ctx.collect(rowData);
+                            ctx.collect(row);
                         });
 
                 break;
@@ -180,13 +202,13 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
 
                 list.forEach(
                         result -> {
-                            Row rowData =
+                            Row row =
                                     RedisResultWrapper.createRowDataForString(
                                             queryParameter,
                                             String.valueOf(result),
                                             redisValueDataStructure,
                                             dataTypes);
-                            ctx.collect(rowData);
+                            ctx.collect(row);
                         });
                 break;
             }
@@ -194,6 +216,16 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
             }
             default:
         }
+    }
+
+    private boolean noKey(Row row) {
+        if (row == null || row.getArity() == 0) {
+            return true;
+        }
+        if (row.getField(0) == null) {
+            return true;
+        }
+        return false;
     }
 
     @Override

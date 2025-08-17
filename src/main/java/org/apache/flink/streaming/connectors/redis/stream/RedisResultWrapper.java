@@ -60,6 +60,31 @@ public class RedisResultWrapper {
         return createRowDataForRow(value, dataTypes);
     }
 
+    public static Row createRowDataForString(
+            String key,
+            String value,
+            RedisValueDataStructure redisValueDataStructure,
+            List<TypeInformation> dataTypes) {
+        if (redisValueDataStructure == RedisValueDataStructure.column) {
+            Row row = new Row(2);
+            row.setField(
+                    0,
+                    RedisRowConverter.dataTypeFromString(
+                            dataTypes.get(0), key));
+            if (value == null) {
+                row.setField(0, null);
+                return row;
+            }
+
+            row.setField(
+                    1,
+                    RedisRowConverter.dataTypeFromString(dataTypes.get(1), value));
+            return row;
+        }
+
+        return createRowDataForRow(value, dataTypes);
+    }
+
     /**
      * create row data for whole row.
      *

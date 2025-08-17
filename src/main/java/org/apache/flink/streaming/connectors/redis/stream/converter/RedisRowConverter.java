@@ -18,17 +18,24 @@
 
 package org.apache.flink.streaming.connectors.redis.stream.converter;
 
-import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.types.Row;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Time;
-import java.sql.Types;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Base64;
 
-/** redis serialize for stream API. */
+/**
+ * redis serialize for stream API.
+ */
 public class RedisRowConverter {
 
     private static final int TIMESTAMP_PRECISION_MIN = 0;
@@ -46,44 +53,57 @@ public class RedisRowConverter {
     }
 
     public static RedisDeserializationConverter createDeserializer(TypeInformation<?> fieldType) {
-        if (fieldType.equals(BasicTypeInfo.BIG_INT_TYPE_INFO)) {
-            return result -> new BigDecimal(result);
-        } else if (fieldType.equals(BasicTypeInfo.FLOAT_TYPE_INFO)) {
+        if (fieldType.equals(Types.BIG_DEC)) {
+            return BigDecimal::new;
+        } else if (fieldType.equals(Types.FLOAT)) {
             return Float::valueOf;
-        } else if (fieldType.equals(BasicTypeInfo.DOUBLE_TYPE_INFO)) {
+        } else if (fieldType.equals(Types.DOUBLE)) {
             return Double::valueOf;
-        } else if (fieldType.equals(BasicTypeInfo.STRING_TYPE_INFO)) {
+        } else if (fieldType.equals(Types.CHAR)) {
+            return result -> result.charAt(0);
+        } else if (fieldType.equals(Types.STRING)) {
             return result -> result;
-        } else if (fieldType.equals(BasicTypeInfo.BOOLEAN_TYPE_INFO)) {
+        } else if (fieldType.equals(Types.BOOLEAN)) {
             return Boolean::valueOf;
-        } else if (fieldType.equals(BasicTypeInfo.BYTE_TYPE_INFO)) {
+        } else if (fieldType.equals(Types.BYTE)) {
             return Byte::valueOf;
-        } else if (fieldType.equals(BasicTypeInfo.SHORT_TYPE_INFO)) {
+        } else if (fieldType.equals(Types.SHORT)) {
             return Short::valueOf;
-        } else if (fieldType.equals(BasicTypeInfo.INT_TYPE_INFO)) {
+        } else if (fieldType.equals(Types.INT)) {
             return Integer::valueOf;
-        } else if (fieldType.equals(BasicTypeInfo.LONG_TYPE_INFO)) {
+        } else if (fieldType.equals(Types.LONG) || fieldType.equals(Types.BIG_INT)) {
             return Long::valueOf;
-        } else if (fieldType.equals(BasicTypeInfo.DATE_TYPE_INFO)) {
+        } else if (fieldType.equals(Types.SQL_DATE)) {
             return Date::valueOf;
-        } else if (fieldType.equals(Types.TIME)) {
+        } else if (fieldType.equals(Types.SQL_TIME)) {
             return Time::valueOf;
-//        } else if (fieldType.equals(BasicTypeInfo.TIMESTAMP_TYPE_INFO)) {
-//            return Timestamp::valueOf;
-//        } else if (fieldType.equals(BasicTypeInfo.BINARY_TYPE_INFO)) {
-//            return result -> Base64.getDecoder().decode(result);
+        } else if (fieldType.equals(Types.SQL_TIMESTAMP)) {
+            return Timestamp::valueOf;
+        } else if (fieldType.equals(Types.LOCAL_DATE)) {
+            return LocalDate::parse;
+        } else if (fieldType.equals(Types.LOCAL_TIME)) {
+            return LocalTime::parse;
+        } else if (fieldType.equals(Types.LOCAL_DATE_TIME)) {
+            return LocalDateTime::parse;
+        } else if (fieldType.equals(Types.INSTANT)) {
+            return Instant::parse;
+        } else if (fieldType.equals(Types.PRIMITIVE_ARRAY(Types.BYTE))) {
+            return result -> Base64.getDecoder().decode(result);
         } else {
             throw new UnsupportedOperationException("Unsupported field type: " + fieldType);
         }
     }
 
     private static RedisSerializationConverter createSerializer(TypeInformation<?> fieldType) {
-        if (fieldType.equals(BasicTypeInfo.STRING_TYPE_INFO)) {
-            return (row, index) -> row.getField(index).toString();
-//        } else if (fieldType.equals(BasicTypeInfo.BINARY_TYPE_INFO)) {
-//            return (row, index) -> Base64.getEncoder().encodeToString((byte[]) row.getField(index));
+        if (fieldType.equals(Types.STRING)) {
+            return (row, index) -> String.valueOf(row.getField(index));
+        } else if (fieldType.equals(Types.PRIMITIVE_ARRAY(Types.BYTE))) {
+            return (row, index) -> {
+                byte[] bytes = (byte[]) row.getField(index);
+                return bytes == null ? null : Base64.getEncoder().encodeToString(bytes);
+            };
         } else {
-            return (row, index) -> row.getField(index).toString();
+            return (row, index) -> String.valueOf(row.getField(index));
         }
     }
 

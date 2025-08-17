@@ -18,13 +18,13 @@
 
 package org.apache.flink.streaming.connectors.redis.container;
 
+import io.lettuce.core.KeyValue;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +34,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** Redis command container if we want to connect to a Redis cluster. */
+/**
+ * Redis command container if we want to connect to a Redis cluster.
+ */
 public class RedisClusterContainer implements RedisCommandsContainer, Closeable {
 
     private static final long serialVersionUID = 1L;
@@ -63,7 +65,9 @@ public class RedisClusterContainer implements RedisCommandsContainer, Closeable 
         LOG.info("open async connection!!!!");
     }
 
-    /** Closes the {@link RedisClusterClient}. */
+    /**
+     * Closes the {@link RedisClusterClient}.
+     */
     @Override
     public void close() {
         this.connection.close();
@@ -449,8 +453,25 @@ public class RedisClusterContainer implements RedisCommandsContainer, Closeable 
         } catch (Exception e) {
             if (LOG.isErrorEnabled()) {
                 LOG.error(
-                        "Cannot send Redis message with command hget to key {} error message {}",
+                        "Cannot send Redis message with command get to key {} error message {}",
                         key,
+                        e.getMessage());
+            }
+            throw e;
+        }
+    }
+
+    @Override
+    public RedisFuture<List<KeyValue>> mget(String keyPattern)  throws Exception{
+        try {
+            RedisFuture<List<String>> keys = clusterAsyncCommands.keys(keyPattern);
+            List<String> list = keys.get();
+            return clusterAsyncCommands.mget(list.toArray(new String[0]));
+        } catch (Exception e) {
+            if (LOG.isErrorEnabled()) {
+                LOG.error(
+                        "Cannot send Redis message with command mget to keyPattern {} error message {}",
+                        keyPattern,
                         e.getMessage());
             }
             throw e;

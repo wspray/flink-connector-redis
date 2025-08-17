@@ -65,18 +65,18 @@ public class RowRedisSinkRowMapper implements RedisSinkRowMapper<Row> {
     }
 
     @Override
-    public String getKeyFromData(Row rowData, TypeInformation logicalType, Integer keyIndex) {
-        return RedisRowConverter.rowDataToString(logicalType, rowData, keyIndex);
+    public String getKeyFromData(Row row, TypeInformation typeInformation, Integer keyIndex) {
+        return RedisRowConverter.rowDataToString(typeInformation, row, keyIndex);
     }
 
     @Override
-    public String getValueFromData(Row rowData, TypeInformation logicalType, Integer valueIndex) {
-        return RedisRowConverter.rowDataToString(logicalType, rowData, valueIndex);
+    public String getValueFromData(Row row, TypeInformation typeInformation, Integer valueIndex) {
+        return RedisRowConverter.rowDataToString(typeInformation, row, valueIndex);
     }
 
     @Override
-    public String getFieldFromData(Row rowData, TypeInformation logicalType, Integer fieldIndex) {
-        return RedisRowConverter.rowDataToString(logicalType, rowData, fieldIndex);
+    public String getFieldFromData(Row row, TypeInformation typeInformation, Integer fieldIndex) {
+        return RedisRowConverter.rowDataToString(typeInformation, row, fieldIndex);
     }
 
     public RedisCommand getRedisCommand() {

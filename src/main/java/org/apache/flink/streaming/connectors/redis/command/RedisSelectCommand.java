@@ -20,6 +20,7 @@ package org.apache.flink.streaming.connectors.redis.command;
 
 public enum RedisSelectCommand {
     GET,
+    MGET,
     HGET,
     LRANGE,
     SRANDMEMBER,

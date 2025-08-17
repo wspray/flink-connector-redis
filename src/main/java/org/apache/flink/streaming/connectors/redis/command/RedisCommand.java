@@ -66,6 +66,14 @@ public enum RedisCommand {
             RedisDeleteCommand.DEL,
             true),
 
+    /** get muti-val from string pattern. */
+    MGET(
+            RedisInsertCommand.SET,
+            RedisSelectCommand.MGET,
+            RedisJoinCommand.GET,
+            RedisDeleteCommand.DEL,
+            true),
+
     /**
      * Insert the specified value at the tail of the list stored at key. If key does not exist, it
      * is created as empty list before performing the push operation.
