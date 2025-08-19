@@ -43,10 +43,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.LocalTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 import static org.apache.flink.streaming.connectors.redis.command.RedisInsertCommand.HSET;
 import static org.apache.flink.streaming.connectors.redis.command.RedisInsertCommand.ZADD;
@@ -64,6 +61,7 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
     private final boolean ttlKeyNotAbsent;
     private final RedisSinkRowMapper<IN> redisSinkMapper;
     private final RedisCommand redisCommand;
+    private final ReadableConfig readableConfig;
     private final FlinkConfigBase flinkConfigBase;
     private final List<TypeInformation> columnDataTypes;
     private final RedisValueDataStructure redisValueDataStructure;
@@ -89,6 +87,7 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
         Objects.requireNonNull(redisSinkMapper, "Redis Mapper can not be null");
 
         this.flinkConfigBase = flinkConfigBase;
+        this.readableConfig = readableConfig;
         this.maxRetryTimes = readableConfig.get(RedisOptions.MAX_RETRIES);
         this.redisSinkMapper = redisSinkMapper;
         RedisCommandDescription redisCommandDescription =
@@ -125,23 +124,33 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
             return;
         }
 
-        String[] params = new String[calcParamNumByCommand(row.getArity())];
-        for (int i = 0; i < params.length; i++) {
-            params[i] =
-                    redisSinkMapper.getKeyFromData(
-                            row, columnDataTypes.get(i), i);
-        }
+        String[] params = getParamsFrom(row);
 
         // the value is taken from the entire row when redisValueFromType is row, and columns
         // separated by '\01'
         if (redisValueDataStructure == RedisValueDataStructure.row) {
             params[params.length - 1] = serializeWholeRow(row);
         }
-        RedisInsertCommand insertCommand = redisCommand.getInsertCommand();
+
         startSink(params, kind);
         if (auditLog) {
             LOG.info("{}", row);
         }
+    }
+
+    private String[] getParamsFrom(Row row) {
+        Boolean rowByNames = this.readableConfig.get(RedisOptions.ROW_BY_NAMES);
+        if (rowByNames) {
+            return calcParamByCommand(row);
+        }
+
+        String[] params = new String[calcParamNumByCommand(row.getArity())];
+        for (int i = 0; i < params.length; i++) {
+            params[i] =
+                    redisSinkMapper.getKeyFromData(
+                            row, columnDataTypes.get(i), i);
+        }
+        return params;
     }
 
 
@@ -428,37 +437,11 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
         }
     }
 
-    //
-    public String[] convertParam(Row row,
-                                 String keyField,
-                                 RedisInsertCommand insertCommand) {
-        String[] params = new String[calcParamNumByCommand(insertCommand)];
-        params[0] = getKey(row, keyField);
-        if (HSET == insertCommand) {
-
-        } else if (ZADD == insertCommand) {
-
-        } else {
-
-        }
-        return null;
-    }
-
-    private int calcParamNumByCommand(RedisInsertCommand insertCommand) {
-        switch (insertCommand) {
-            case HSET:
-            case ZADD:
-                return 3;
-            default:
-                return 2;
-        }
-    }
-
     private static final String REDIS_GROUP_DELIMITER = ":";
     private static final String LEFT_PLACEHOLDER_MARKER = "{";
     private static final String RIGHT_PLACEHOLDER_MARKER = "}";
 
-    private static String getKey(Row element, String keyField) {
+    private String getNameByTag(Row element, String keyField) {
         if (!keyField.contains(REDIS_GROUP_DELIMITER)) {
             Object fieldValue = element.getField(keyField);
             return fieldValue == null ? "" : fieldValue.toString();
@@ -467,7 +450,7 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
         }
     }
 
-    private static String getCustomKey(Row element, String keyField) {
+    private String getCustomKey(Row element, String keyField) {
         String[] keyFieldSegments = keyField.split(REDIS_GROUP_DELIMITER);
         StringBuilder key = new StringBuilder();
         for (int i = 0; i < keyFieldSegments.length; i++) {
@@ -499,6 +482,12 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
      * @return
      */
     private String serializeWholeRow(Row row) {
+        Boolean rowByNames = this.readableConfig.get(RedisOptions.ROW_BY_NAMES);
+        if (rowByNames) {
+            // TODO
+            return row.toString();
+        }
+
         StringBuilder stringBuilder = new StringBuilder();
         for (int i = 0; i < columnDataTypes.size(); i++) {
             stringBuilder.append(
@@ -534,6 +523,62 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
         }
 
         return 2;
+    }
+
+    private String[] calcParamByCommand(Row row) {
+        List<String> params = new ArrayList<>();
+        String keyField = this.readableConfig.get(RedisOptions.CUSTOM_KEY_NAME);
+        String realKeyField = getNameByTag(row, keyField);
+
+        params.add(realKeyField);
+
+        if (redisCommand == RedisCommand.DEL) {
+            return params.toArray(new String[0]);
+        }
+
+        if (redisCommand.getInsertCommand() == ZADD) {
+            String scoreField = this.readableConfig.get(RedisOptions.CUSTOM_SCORE_NAME);
+            String realScoreField = getNameByTag(row, scoreField);
+            params.add(realScoreField);
+
+            String valueField = this.readableConfig.get(RedisOptions.CUSTOM_VALUE_NAME);
+            String realValueField = getNameByTag(row, valueField);
+            params.add(realValueField);
+
+            if (zremrangeby != null) {
+                String startField = this.readableConfig.get(RedisOptions.CUSTOM_START);
+                String realStartField = getNameByTag(row, startField);
+                params.add(realStartField);
+
+                String endField = this.readableConfig.get(RedisOptions.CUSTOM_END);
+                String realEndField = getNameByTag(row, endField);
+                params.add(realEndField);
+            }
+            return params.toArray(new String[0]);
+        } else if (redisCommand.getInsertCommand() == HSET
+                || redisCommand.getInsertCommand() == RedisInsertCommand.HINCRBY
+                || redisCommand.getInsertCommand() == RedisInsertCommand.HINCRBYFLOAT) {
+            String fieldField = this.readableConfig.get(RedisOptions.CUSTOM_FIELD_NAME);
+            String realFieldField = getNameByTag(row, fieldField);
+            params.add(realFieldField);
+
+            String valueField = this.readableConfig.get(RedisOptions.CUSTOM_VALUE_NAME);
+            String realValueField = getNameByTag(row, valueField);
+            params.add(realValueField);
+            return params.toArray(new String[0]);
+
+        } else if (redisCommand.getInsertCommand() == RedisInsertCommand.HMSET) {
+            Set<String> fieldNames = row.getFieldNames(true);
+            for (String fieldName : fieldNames) {
+                params.add(getNameByTag(row, fieldName));
+            }
+            return params.toArray(new String[0]);
+        }
+
+        String valueField = this.readableConfig.get(RedisOptions.CUSTOM_VALUE_NAME);
+        String realValueField = getCustomKey(row, valueField);
+        params.add(realValueField);
+        return params.toArray(new String[0]);
     }
 
     /**

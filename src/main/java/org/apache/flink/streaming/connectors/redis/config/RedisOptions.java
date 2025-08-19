@@ -218,10 +218,20 @@ public class RedisOptions {
                     .defaultValue(false)
                     .withDescription("Optional turn on the audit log switch.");
 
+
+
+    public static final ConfigOption<Boolean> ROW_BY_NAMES =
+            ConfigOptions.key("custom.row.byNames")
+                    .booleanType()
+                    .defaultValue(Boolean.TRUE)
+                    .withDescription("Optional set custom.row.byNames for query output");
+
     public static final String KEY = "key";
     public static final String VALUE = "value";
     public static final String FIELD = "field";
     public static final String SCORE = "score";
+    public static final String START = "start";
+    public static final String END = "end";
 
     public static final ConfigOption<String> CUSTOM_KEY_NAME =
             ConfigOptions.key("custom.key.name")
@@ -244,6 +254,16 @@ public class RedisOptions {
                     .stringType()
                     .defaultValue(SCORE)
                     .withDescription("Optional set custom.score.name for query output");
+    public static final ConfigOption<String> CUSTOM_START =
+            ConfigOptions.key("custom.zrange.start")
+                    .stringType()
+                    .defaultValue(START)
+                    .withDescription("Optional set custom.zrange.start for query output");
+    public static final ConfigOption<String> CUSTOM_END =
+            ConfigOptions.key("custom.zrange.end")
+                    .stringType()
+                    .defaultValue(END)
+                    .withDescription("Optional set custom.zrange.end for query output");
 
     private RedisOptions() {
     }
