@@ -20,7 +20,6 @@ package org.apache.flink.streaming.connectors.redis.stream;
 
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
-
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
@@ -49,6 +48,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.apache.flink.streaming.connectors.redis.command.RedisInsertCommand.HSET;
+import static org.apache.flink.streaming.connectors.redis.command.RedisInsertCommand.ZADD;
+
 /**
  * A Redis sink function for stream API.
  */
@@ -76,7 +78,7 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
      *
      * @param flinkConfigBase The configuration of {@link FlinkConfigBase}
      * @param redisSinkMapper This is used to generate Redis command and key value from incoming
-     *     elements.
+     *                        elements.
      */
     public RedisSinkFunction(
             FlinkConfigBase flinkConfigBase,
@@ -122,6 +124,7 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
         if (kind == RowKind.UPDATE_BEFORE) {
             return;
         }
+
         String[] params = new String[calcParamNumByCommand(row.getArity())];
         for (int i = 0; i < params.length; i++) {
             params[i] =
@@ -134,12 +137,13 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
         if (redisValueDataStructure == RedisValueDataStructure.row) {
             params[params.length - 1] = serializeWholeRow(row);
         }
-
+        RedisInsertCommand insertCommand = redisCommand.getInsertCommand();
         startSink(params, kind);
         if (auditLog) {
             LOG.info("{}", row);
         }
     }
+
 
     /**
      * It will try many times which less than {@code maxRetryTimes} until execute success.
@@ -191,21 +195,20 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
             case SADD:
                 redisFuture = this.redisCommandsContainer.sadd(params[0], params[1]);
                 break;
-            case SET:
-                {
-                    if (!this.setIfAbsent) {
-                        redisFuture = this.redisCommandsContainer.set(params[0], params[1]);
-                    } else {
-                        redisFuture = this.redisCommandsContainer.exists(params[0]);
-                        redisFuture.whenComplete(
-                                (existsVal, throwable) -> {
-                                    if ((int) existsVal == 0) {
-                                        this.redisCommandsContainer.set(params[0], params[1]);
-                                    }
-                                });
-                    }
+            case SET: {
+                if (!this.setIfAbsent) {
+                    redisFuture = this.redisCommandsContainer.set(params[0], params[1]);
+                } else {
+                    redisFuture = this.redisCommandsContainer.exists(params[0]);
+                    redisFuture.whenComplete(
+                            (existsVal, throwable) -> {
+                                if ((int) existsVal == 0) {
+                                    this.redisCommandsContainer.set(params[0], params[1]);
+                                }
+                            });
                 }
-                break;
+            }
+            break;
             case PFADD:
                 redisFuture = this.redisCommandsContainer.pfadd(params[0], params[1]);
                 break;
@@ -256,49 +259,47 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
             case SREM:
                 redisFuture = this.redisCommandsContainer.srem(params[0], params[1]);
                 break;
-            case HSET:
-                {
-                    if (!this.setIfAbsent) {
-                        redisFuture =
-                                this.redisCommandsContainer.hset(params[0], params[1], params[2]);
-                    } else {
-                        redisFuture = this.redisCommandsContainer.hexists(params[0], params[1]);
-                        redisFuture.whenComplete(
-                                (exist, throwable) -> {
-                                    if (!(Boolean) exist) {
-                                        this.redisCommandsContainer.hset(
-                                                params[0], params[1], params[2]);
-                                    }
-                                });
-                    }
+            case HSET: {
+                if (!this.setIfAbsent) {
+                    redisFuture =
+                            this.redisCommandsContainer.hset(params[0], params[1], params[2]);
+                } else {
+                    redisFuture = this.redisCommandsContainer.hexists(params[0], params[1]);
+                    redisFuture.whenComplete(
+                            (exist, throwable) -> {
+                                if (!(Boolean) exist) {
+                                    this.redisCommandsContainer.hset(
+                                            params[0], params[1], params[2]);
+                                }
+                            });
                 }
-                break;
-            case HMSET:
-                {
-                    if (params.length < 2) {
-                        throw new RuntimeException("params length must be greater than 2");
-                    }
-                    if (params.length % 2 != 1) {
-                        throw new RuntimeException("params length must be odd");
-                    }
-                    // 遍历把params第一个下标作为key，从第二个下标作为value，存进map中
-                    Map<String, String> hashField = new HashMap<>();
-                    for (int i = 1; i < params.length; i++) {
-                        hashField.put(params[i], params[++i]);
-                    }
-                    if (!this.setIfAbsent) {
-                        redisFuture = this.redisCommandsContainer.hmset(params[0], hashField);
-                    } else {
-                        redisFuture = this.redisCommandsContainer.exists(params[0]);
-                        redisFuture.whenComplete(
-                                (exist, throwable) -> {
-                                    if (!(Boolean) exist) {
-                                        this.redisCommandsContainer.hmset(params[0], hashField);
-                                    }
-                                });
-                    }
+            }
+            break;
+            case HMSET: {
+                if (params.length < 2) {
+                    throw new RuntimeException("params length must be greater than 2");
                 }
-                break;
+                if (params.length % 2 != 1) {
+                    throw new RuntimeException("params length must be odd");
+                }
+                // 遍历把params第一个下标作为key，从第二个下标作为value，存进map中
+                Map<String, String> hashField = new HashMap<>();
+                for (int i = 1; i < params.length; i++) {
+                    hashField.put(params[i], params[++i]);
+                }
+                if (!this.setIfAbsent) {
+                    redisFuture = this.redisCommandsContainer.hmset(params[0], hashField);
+                } else {
+                    redisFuture = this.redisCommandsContainer.exists(params[0]);
+                    redisFuture.whenComplete(
+                            (exist, throwable) -> {
+                                if (!(Boolean) exist) {
+                                    this.redisCommandsContainer.hmset(params[0], hashField);
+                                }
+                            });
+                }
+            }
+            break;
             case HINCRBY:
                 redisFuture =
                         this.redisCommandsContainer.hincrBy(
@@ -356,11 +357,10 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
                 Double d = -Double.valueOf(params[1]);
                 redisFuture = this.redisCommandsContainer.zincrBy(params[0], d, params[2]);
                 break;
-            case HDEL:
-                {
-                    redisFuture = this.redisCommandsContainer.hdel(params[0], params[1]);
-                }
-                break;
+            case HDEL: {
+                redisFuture = this.redisCommandsContainer.hdel(params[0], params[1]);
+            }
+            break;
             case HINCRBY:
                 redisFuture =
                         this.redisCommandsContainer.hincrBy(
@@ -428,6 +428,70 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
         }
     }
 
+    //
+    public String[] convertParam(Row row,
+                                 String keyField,
+                                 RedisInsertCommand insertCommand) {
+        String[] params = new String[calcParamNumByCommand(insertCommand)];
+        params[0] = getKey(row, keyField);
+        if (HSET == insertCommand) {
+
+        } else if (ZADD == insertCommand) {
+
+        } else {
+
+        }
+        return null;
+    }
+
+    private int calcParamNumByCommand(RedisInsertCommand insertCommand) {
+        switch (insertCommand) {
+            case HSET:
+            case ZADD:
+                return 3;
+            default:
+                return 2;
+        }
+    }
+
+    private static final String REDIS_GROUP_DELIMITER = ":";
+    private static final String LEFT_PLACEHOLDER_MARKER = "{";
+    private static final String RIGHT_PLACEHOLDER_MARKER = "}";
+
+    private static String getKey(Row element, String keyField) {
+        if (!keyField.contains(REDIS_GROUP_DELIMITER)) {
+            Object fieldValue = element.getField(keyField);
+            return fieldValue == null ? "" : fieldValue.toString();
+        } else {
+            return getCustomKey(element, keyField);
+        }
+    }
+
+    private static String getCustomKey(Row element, String keyField) {
+        String[] keyFieldSegments = keyField.split(REDIS_GROUP_DELIMITER);
+        StringBuilder key = new StringBuilder();
+        for (int i = 0; i < keyFieldSegments.length; i++) {
+            String keyFieldSegment = keyFieldSegments[i];
+            if (keyFieldSegment.startsWith(LEFT_PLACEHOLDER_MARKER)
+                    && keyFieldSegment.endsWith(RIGHT_PLACEHOLDER_MARKER)) {
+                String realKeyField = keyFieldSegment.substring(1, keyFieldSegment.length() - 1);
+                Object realFieldValue = element.getField(realKeyField);
+                if (realFieldValue != null) {
+                    key.append(realFieldValue);
+                } else {
+                    key.append(keyFieldSegment);
+                }
+            } else {
+                key.append(keyFieldSegment);
+            }
+            if (i != keyFieldSegments.length - 1) {
+                key.append(REDIS_GROUP_DELIMITER);
+            }
+        }
+        return key.toString();
+    }
+
+
     /**
      * serialize whole row.
      *
@@ -457,10 +521,10 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
             return 1;
         }
 
-        if (redisCommand.getInsertCommand() == RedisInsertCommand.ZADD && zremrangeby != null) {
+        if (redisCommand.getInsertCommand() == ZADD && zremrangeby != null) {
             return 5;
-        } else if (redisCommand.getInsertCommand() == RedisInsertCommand.HSET
-                || redisCommand.getInsertCommand() == RedisInsertCommand.ZADD
+        } else if (redisCommand.getInsertCommand() == HSET
+                || redisCommand.getInsertCommand() == ZADD
                 || redisCommand.getInsertCommand() == RedisInsertCommand.HINCRBY
                 || redisCommand.getInsertCommand() == RedisInsertCommand.HINCRBYFLOAT
                 || redisCommand.getInsertCommand() == RedisInsertCommand.ZINCRBY) {
