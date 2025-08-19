@@ -183,7 +183,7 @@ public class SQLQueryTest extends TestRedisConfigBase {
                         + REDIS_HOST
                         + "','port'='"
                         + REDIS_PORT
-                        + "', 'redis-mode'='single','scan.key'='test_set', 'scan.count'='2', 'password'='"
+                        + "', 'redis-mode'='single','scan.key'='test_set', 'scan.srandmember.count'='2', 'password'='"
                         + REDIS_PASSWORD
                         + "','"
                         + REDIS_COMMAND

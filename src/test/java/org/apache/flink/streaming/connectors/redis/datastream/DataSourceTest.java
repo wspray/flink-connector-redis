@@ -75,7 +75,7 @@ public class DataSourceTest extends TestRedisConfigBase {
                         .build();
 
         RedisSourceFunction<Row> sourceFunction =
-                new RedisSourceFunction<>(redisMapper, configuration, conf, columnDataTypes);
+                new RedisSourceFunction<>(redisMapper, configuration, conf, null);
 
         DataStreamSource<Row> source = env.addSource(sourceFunction, TypeInformation.of(Row.class));
 

@@ -40,6 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -58,7 +59,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
     private final long cacheMaxSize;
     private final long cacheTtl;
     private final int maxRetryTimes;
-    private final List<TypeInformation> dataTypes;
+    private final Map<String,TypeInformation> dataTypes;
     private final boolean loadAll;
     private final RedisValueDataStructure redisValueDataStructure;
     private Cache<String, Object> cache;
@@ -67,7 +68,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
             FlinkConfigBase flinkConfigBase,
             RedisMapper redisMapper,
             RedisJoinConfig redisJoinConfig,
-            List<TypeInformation> dataTypes,
+            Map<String,TypeInformation> dataTypes,
             ReadableConfig readableConfig) {
         Preconditions.checkNotNull(
                 flinkConfigBase, "Redis connection pool config should not be null");
@@ -222,7 +223,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                                 result -> {
                                     Row rowData =
                                             RedisResultWrapper.createRowDataForSortedSet(
-                                                    keys, result, dataTypes);
+                                                    keys, result, redisValueDataStructure);
                                     resultFuture.complete(Collections.singleton(rowData));
                                     if (cache != null && result != null) {
                                         String key =

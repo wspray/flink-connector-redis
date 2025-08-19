@@ -58,6 +58,14 @@ public enum RedisCommand {
             RedisDeleteCommand.HDEL,
             true),
 
+    /** get val from map. */
+    HGETALL(
+            RedisInsertCommand.HSET,
+            RedisSelectCommand.HGETALL,
+            RedisJoinCommand.HGET,
+            RedisDeleteCommand.HDEL,
+            true),
+
     /** get val from string. */
     GET(
             RedisInsertCommand.SET,
@@ -94,6 +102,13 @@ public enum RedisCommand {
             RedisJoinCommand.NONE,
             RedisDeleteCommand.NONE,
             true),
+    LRANGE(
+            RedisInsertCommand.LPUSH,
+            RedisSelectCommand.LRANGE,
+            RedisJoinCommand.NONE,
+            RedisDeleteCommand.NONE,
+            true),
+
 
     /** Delta plus for specified key. */
     INCRBY(
@@ -146,10 +161,31 @@ public enum RedisCommand {
             RedisDeleteCommand.SREM,
             true),
 
+    SMEMBERS(
+            RedisInsertCommand.SADD,
+            RedisSelectCommand.SMEMBERS,
+            RedisJoinCommand.NONE,
+            RedisDeleteCommand.SREM,
+            true),
+
     /** Adds the specified members with the specified score to the sorted set stored at key. */
     ZADD(
             RedisInsertCommand.ZADD,
             RedisSelectCommand.ZSCORE,
+            RedisJoinCommand.ZSCORE,
+            RedisDeleteCommand.ZREM,
+            true),
+
+    ZSCORE(
+            RedisInsertCommand.ZADD,
+            RedisSelectCommand.ZSCORE,
+            RedisJoinCommand.ZSCORE,
+            RedisDeleteCommand.ZREM,
+            true),
+
+    ZRANGEWITHSCORES(
+            RedisInsertCommand.ZADD,
+            RedisSelectCommand.ZRANGEWITHSCORES,
             RedisJoinCommand.ZSCORE,
             RedisDeleteCommand.ZREM,
             true),

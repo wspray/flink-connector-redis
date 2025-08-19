@@ -176,7 +176,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                         this.redisCommandsContainer
                                 .srandmember(
                                         String.valueOf(queryParameter[0]),
-                                        readableConfig.get(RedisOptions.SCAN_COUNT))
+                                        readableConfig.get(RedisOptions.SCAN_SRANDMEMBER_COUNT))
                                 .get();
 
                 list.forEach(
@@ -244,9 +244,9 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                     RedisOptions.SCAN_RANGE_STOP.key());
         } else if (redisCommand.getSelectCommand() == RedisSelectCommand.SRANDMEMBER) {
             Preconditions.checkNotNull(
-                    this.readableConfig.get(RedisOptions.SCAN_COUNT),
+                    this.readableConfig.get(RedisOptions.SCAN_SRANDMEMBER_COUNT),
                     "the %s must not be null when query set",
-                    RedisOptions.SCAN_COUNT.key());
+                    RedisOptions.SCAN_SRANDMEMBER_COUNT.key());
         }
     }
 }

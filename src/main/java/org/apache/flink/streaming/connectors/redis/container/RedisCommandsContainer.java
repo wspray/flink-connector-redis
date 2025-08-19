@@ -21,12 +21,14 @@ package org.apache.flink.streaming.connectors.redis.container;
 import io.lettuce.core.KeyValue;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
+import io.lettuce.core.ScoredValue;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** The container for all available Redis commands. */
 public interface RedisCommandsContainer extends Serializable {
@@ -231,7 +233,9 @@ public interface RedisCommandsContainer extends Serializable {
      */
     RedisFuture<String> get(String key);
 
-    RedisFuture<List<KeyValue>> mget(String keyPattern) throws Exception;
+    RedisFuture<List<KeyValue>> mget(Set<String> keys) throws Exception;
+
+    Set<String> scanKeys(String keyPattern, long count) throws Exception;
 
         /**
          * Close the container.
@@ -314,6 +318,9 @@ public interface RedisCommandsContainer extends Serializable {
      */
     RedisFuture<Double> zscore(String key, String member);
 
+
+    RedisFuture<List<ScoredValue<String>>> zrangeWithScores(String key, long start, long end);
+
     /**
      * @param key
      * @param start
@@ -327,7 +334,9 @@ public interface RedisCommandsContainer extends Serializable {
      * @param count
      * @return
      */
-    public RedisFuture<List> srandmember(String key, long count);
+    RedisFuture<List> srandmember(String key, long count);
+
+    RedisFuture<Set> smembers(String key);
 
     /**
      * get redis async commands.

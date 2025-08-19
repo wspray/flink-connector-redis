@@ -19,7 +19,7 @@
 package org.apache.flink.streaming.connectors.redis.stream;
 
 import io.lettuce.core.KeyValue;
-import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
+import io.lettuce.core.ScoredValue;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
@@ -39,7 +39,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.apache.flink.streaming.connectors.redis.command.RedisSelectCommand.MGET;
 
 public class RedisSourceFunction<T> extends RichSourceFunction<T> {
 
@@ -58,7 +64,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
 
     private final RedisValueDataStructure redisValueDataStructure;
 
-    private final List<TypeInformation> dataTypes;
+    private final Map<String, TypeInformation> dataTypes;
 
     private String[] queryParameter;
 
@@ -66,7 +72,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
             RedisMapper redisMapper,
             ReadableConfig readableConfig,
             FlinkConfigBase flinkConfigBase,
-            List<TypeInformation> dataTypes) {
+            Map<String, TypeInformation> dataTypes) {
         this.readableConfig = readableConfig;
         this.flinkConfigBase = flinkConfigBase;
         this.maxRetryTimes = readableConfig.get(RedisOptions.MAX_RETRIES);
@@ -120,30 +126,44 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
     }
 
     private void query(SourceContext ctx) throws Exception {
+        String key = queryParameter[0];
+        if (!key.contains("*")) {
+            queryForKey(ctx);
+            return;
+        }
+        Long scanCount = this.readableConfig.get(RedisOptions.SCAN_COUNT);
+        if (MGET == redisCommand.getSelectCommand()) {
+            String keys = String.join(",", this.redisCommandsContainer.scanKeys(key, scanCount));
+            queryParameter[0] = keys;
+            queryForKey(ctx);
+        } else {
+            Set<String> keys = this.redisCommandsContainer.scanKeys(key, scanCount);
+            for (String k : keys) {
+                queryParameter[0] = k;
+                queryForKey(ctx);
+            }
+        }
+    }
+
+    private void queryForKey(SourceContext ctx) throws Exception {
+        String key = queryParameter[0];
         switch (redisCommand.getSelectCommand()) {
             case GET: {
-                String result = this.redisCommandsContainer.get(queryParameter[0]).get();
+                String result = this.redisCommandsContainer.get(key).get();
                 Row row =
                         RedisResultWrapper.createRowDataForString(
                                 queryParameter, result, redisValueDataStructure, dataTypes);
-                //TODO
-                if (noKey(row)) {
-                    break;
-                }
                 ctx.collect(row);
                 break;
             }
             case MGET: {
-                List<KeyValue> results = this.redisCommandsContainer.mget(queryParameter[0]).get();
+                Set<String> keys = Arrays.stream(key.split(",")).collect(Collectors.toSet());
+                List<KeyValue> results = this.redisCommandsContainer.mget(keys).get();
                 List<Row> rows = new ArrayList<>(results.size());
                 for (KeyValue keyValue : results) {
                     Row row =
                             RedisResultWrapper.createRowDataForString(
                                     (String) keyValue.getKey(), (String) keyValue.getValue(), redisValueDataStructure, dataTypes);
-                    //TODO
-                    if (noKey(row)) {
-                        continue;
-                    }
                     rows.add(row);
                 }
                 ctx.collect(rows);
@@ -152,7 +172,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
             case HGET: {
                 String result =
                         this.redisCommandsContainer
-                                .hget(queryParameter[0], queryParameter[1])
+                                .hget(key, queryParameter[1])
                                 .get();
                 Row row =
                         RedisResultWrapper.createRowDataForHash(
@@ -160,14 +180,14 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                 ctx.collect(row);
                 break;
             }
-            case ZSCORE: {
-                Double result =
+            case HGETALL: {
+                Map<String, String> result =
                         this.redisCommandsContainer
-                                .zscore(queryParameter[0], queryParameter[1])
+                                .hgetAll(key)
                                 .get();
-                Row row =
-                        RedisResultWrapper.createRowDataForSortedSet(
-                                queryParameter, result, dataTypes);
+                List<Row> row =
+                        RedisResultWrapper.createRowDataForHashAll(
+                                queryParameter, result, redisValueDataStructure, dataTypes);
                 ctx.collect(row);
                 break;
             }
@@ -175,7 +195,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                 List list =
                         this.redisCommandsContainer
                                 .lRange(
-                                        queryParameter[0],
+                                        key,
                                         this.readableConfig.get(RedisOptions.SCAN_RANGE_START),
                                         this.readableConfig.get(RedisOptions.SCAN_RANGE_STOP))
                                 .get();
@@ -196,8 +216,8 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                 List list =
                         this.redisCommandsContainer
                                 .srandmember(
-                                        String.valueOf(queryParameter[0]),
-                                        readableConfig.get(RedisOptions.SCAN_COUNT))
+                                        String.valueOf(key),
+                                        readableConfig.get(RedisOptions.SCAN_SRANDMEMBER_COUNT))
                                 .get();
 
                 list.forEach(
@@ -212,20 +232,59 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                         });
                 break;
             }
+            case SMEMBERS: {
+                Set set =
+                        this.redisCommandsContainer
+                                .smembers(
+                                        String.valueOf(key))
+                                .get();
+
+                set.forEach(
+                        result -> {
+                            Row row =
+                                    RedisResultWrapper.createRowDataForString(
+                                            queryParameter,
+                                            String.valueOf(result),
+                                            redisValueDataStructure,
+                                            dataTypes);
+                            ctx.collect(row);
+                        });
+                break;
+            }
+            case ZSCORE: {
+                Double result =
+                        this.redisCommandsContainer
+                                .zscore(key, queryParameter[1])
+                                .get();
+                Row row =
+                        RedisResultWrapper.createRowDataForSortedSet(
+                                queryParameter, result, redisValueDataStructure);
+                ctx.collect(row);
+                break;
+            }
+            case ZRANGEWITHSCORES: {
+                List<ScoredValue<String>> list =
+                        this.redisCommandsContainer
+                                .zrangeWithScores(key,
+                                        this.readableConfig.get(RedisOptions.SCAN_RANGE_START),
+                                        this.readableConfig.get(RedisOptions.SCAN_RANGE_STOP))
+                                .get();
+                list.forEach(
+                        result -> {
+                            Row row =
+                                    RedisResultWrapper.createRowDataForSortedSet(
+                                            queryParameter,
+                                            result,
+                                            redisValueDataStructure,
+                                            dataTypes);
+                            ctx.collect(row);
+                        });
+                break;
+            }
             case SUBSCRIBE: {
             }
             default:
         }
-    }
-
-    private boolean noKey(Row row) {
-        if (row == null || row.getArity() == 0) {
-            return true;
-        }
-        if (row.getField(0) == null) {
-            return true;
-        }
-        return false;
     }
 
     @Override
@@ -260,24 +319,21 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                     this.readableConfig.get(RedisOptions.SCAN_ADDITION_KEY),
                     "must set member value of SortedSet to %s",
                     RedisOptions.SCAN_ADDITION_KEY.key());
-            Preconditions.checkArgument(
-                    dataTypes.get(1).equals(BasicTypeInfo.DOUBLE_TYPE_INFO),
-                    "the second column's type of source table must be double. the type of score is double when the data structure in redis is SortedSet.");
-        } else if (redisCommand.getSelectCommand() == RedisSelectCommand.LRANGE) {
-            Preconditions.checkNotNull(
-                    this.readableConfig.get(RedisOptions.SCAN_RANGE_START),
-                    "the %s must not be null when query list",
-                    RedisOptions.SCAN_RANGE_START.key());
-
-            Preconditions.checkNotNull(
-                    this.readableConfig.get(RedisOptions.SCAN_RANGE_STOP),
-                    "the %s must not be null when query list",
-                    RedisOptions.SCAN_RANGE_STOP.key());
+//        } else if (redisCommand.getSelectCommand() == RedisSelectCommand.LRANGE) {
+//            Preconditions.checkNotNull(
+//                    this.readableConfig.get(RedisOptions.SCAN_RANGE_START),
+//                    "the %s must not be null when query list",
+//                    RedisOptions.SCAN_RANGE_START.key());
+//
+//            Preconditions.checkNotNull(
+//                    this.readableConfig.get(RedisOptions.SCAN_RANGE_STOP),
+//                    "the %s must not be null when query list",
+//                    RedisOptions.SCAN_RANGE_STOP.key());
         } else if (redisCommand.getSelectCommand() == RedisSelectCommand.SRANDMEMBER) {
             Preconditions.checkNotNull(
-                    this.readableConfig.get(RedisOptions.SCAN_COUNT),
+                    this.readableConfig.get(RedisOptions.SCAN_SRANDMEMBER_COUNT),
                     "the %s must not be null when query set",
-                    RedisOptions.SCAN_COUNT.key());
+                    RedisOptions.SCAN_SRANDMEMBER_COUNT.key());
         }
     }
 }

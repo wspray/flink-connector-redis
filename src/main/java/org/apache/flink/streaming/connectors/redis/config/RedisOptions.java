@@ -21,7 +21,9 @@ package org.apache.flink.streaming.connectors.redis.config;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 
-/** Created by jeff.zou on 2020/9/10. */
+/**
+ * Created by jeff.zou on 2020/9/10.
+ */
 public class RedisOptions {
 
     public static final ConfigOption<Integer> TIMEOUT =
@@ -180,6 +182,11 @@ public class RedisOptions {
                     .stringType()
                     .defaultValue(null)
                     .withDescription("Optional set key for query");
+    public static final ConfigOption<Long> SCAN_COUNT =
+            ConfigOptions.key("scan.count")
+                    .longType()
+                    .defaultValue(100000L)
+                    .withDescription("Optional set count for the number of keys to return per scan iteration.");
     public static final ConfigOption<String> SCAN_ADDITION_KEY =
             ConfigOptions.key("scan.addition.key")
                     .stringType()
@@ -188,15 +195,15 @@ public class RedisOptions {
     public static final ConfigOption<Integer> SCAN_RANGE_START =
             ConfigOptions.key("scan.range.start")
                     .intType()
-                    .defaultValue(null)
+                    .defaultValue(0)
                     .withDescription("Optional set range start for lrange query");
     public static final ConfigOption<Integer> SCAN_RANGE_STOP =
             ConfigOptions.key("scan.range.stop")
                     .intType()
-                    .defaultValue(null)
+                    .defaultValue(-1)
                     .withDescription("Optional set range stop for lrange query");
-    public static final ConfigOption<Integer> SCAN_COUNT =
-            ConfigOptions.key("scan.count")
+    public static final ConfigOption<Integer> SCAN_SRANDMEMBER_COUNT =
+            ConfigOptions.key("scan.srandmember.count")
                     .intType()
                     .defaultValue(null)
                     .withDescription("Optional set count for srandmember query");
@@ -204,12 +211,40 @@ public class RedisOptions {
             ConfigOptions.key("zset.zremrangeby")
                     .stringType()
                     .defaultValue(null)
-                    .withDescription("Remove related elements，Valid values: LEX,RANK,SCORE");
+                    .withDescription("Remove related elements, Valid values: LEX,RANK,SCORE");
     public static final ConfigOption<Boolean> AUDIT_LOG =
             ConfigOptions.key("audit.log")
                     .booleanType()
                     .defaultValue(false)
                     .withDescription("Optional turn on the audit log switch.");
 
-    private RedisOptions() {}
+    public static final String KEY = "key";
+    public static final String VALUE = "value";
+    public static final String FIELD = "field";
+    public static final String SCORE = "score";
+
+    public static final ConfigOption<String> CUSTOM_KEY_NAME =
+            ConfigOptions.key("custom.key.name")
+                    .stringType()
+                    .defaultValue(KEY)
+                    .withDescription("Optional set custom.key.name for query output");
+    public static final ConfigOption<String> CUSTOM_VALUE_NAME =
+            ConfigOptions.key("custom.value.name")
+                    .stringType()
+                    .defaultValue(VALUE)
+                    .withDescription("Optional set custom.value.name for query output");
+
+    public static final ConfigOption<String> CUSTOM_FIELD_NAME =
+            ConfigOptions.key("custom.field.name")
+                    .stringType()
+                    .defaultValue(FIELD)
+                    .withDescription("Optional set custom.field.name for query output");
+    public static final ConfigOption<String> CUSTOM_SCORE_NAME =
+            ConfigOptions.key("custom.score.name")
+                    .stringType()
+                    .defaultValue(SCORE)
+                    .withDescription("Optional set custom.score.name for query output");
+
+    private RedisOptions() {
+    }
 }

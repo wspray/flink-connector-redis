@@ -82,10 +82,11 @@ on j.name = 'test'
 | io.pool.size          | (none) | Integer | Lettuce内netty的io线程池大小,默认情况下该值为当前JVM可用线程数，并且大于2                                                   |
 | event.pool.size       | (none) | Integer | Lettuce内netty的event线程池大小 ,默认情况下该值为当前JVM可用线程数，并且大于2                                               |
 | scan.key              | (none) | String  | 查询时redis key                                                                                     |
+| scan.count            | 100000 | Long    | 匹配查询key时指定每次迭代返回的键的数量，默认值（100000）。需平衡速度和服务器负载。                                                   |
 | scan.addition.key     | (none) | String  | 查询时限定redis key,如map结构时的hashfield                                                                 |
 | scan.range.start      | (none) | Integer | 查询list结构时指定lrange start                                                                          |
 | scan.range.stop       | (none) | Integer | 查询list结构时指定lrange start                                                                          |
-| scan.count            | (none) | Integer | 查询set结构时指定srandmember count                                                                      |
+| scan.srandmember.count| (none) | Integer | 查询set结构时指定srandmember count                                                                      |
 | zset.zremrangeby      | (none) | String  | 执行zadd之后，是否执行zremrangeby，取值：SCORE、LEX、RANK                                                       |
 | audit.log             | false  | Boolean | 打开sink日志                                                                                         |
 

@@ -22,9 +22,12 @@ public enum RedisSelectCommand {
     GET,
     MGET,
     HGET,
+    HGETALL,
     LRANGE,
     SRANDMEMBER,
+    SMEMBERS,
     ZSCORE,
+    ZRANGEWITHSCORES,
     SUBSCRIBE,
     NONE
 }

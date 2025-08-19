@@ -18,16 +18,28 @@
 
 package org.apache.flink.streaming.connectors.redis.stream;
 
+import io.lettuce.core.ScoredValue;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonProcessingException;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.streaming.connectors.redis.config.RedisValueDataStructure;
 import org.apache.flink.streaming.connectors.redis.stream.converter.RedisRowConverter;
 import org.apache.flink.types.Row;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
-import static org.apache.flink.streaming.connectors.redis.table.RedisDynamicTableFactory.CACHE_SEPERATOR;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.FIELD;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.KEY;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCORE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.VALUE;
 
 public class RedisResultWrapper {
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * create row data for string.
@@ -39,21 +51,13 @@ public class RedisResultWrapper {
             Object[] keys,
             String value,
             RedisValueDataStructure redisValueDataStructure,
-            List<TypeInformation> dataTypes) {
+            Map<String, TypeInformation> dataTypes) {
         if (redisValueDataStructure == RedisValueDataStructure.column) {
-            Row row = new Row(2);
+            Row row = createRowDataForRow(value, dataTypes);
             row.setField(
-                    0,
+                    KEY,
                     RedisRowConverter.dataTypeFromString(
-                            dataTypes.get(0), String.valueOf(keys[0])));
-            if (value == null) {
-                row.setField(0, null);
-                return row;
-            }
-
-            row.setField(
-                    1,
-                    RedisRowConverter.dataTypeFromString(dataTypes.get(1), value));
+                            Types.STRING, String.valueOf(keys[0])));
             return row;
         }
 
@@ -64,21 +68,13 @@ public class RedisResultWrapper {
             String key,
             String value,
             RedisValueDataStructure redisValueDataStructure,
-            List<TypeInformation> dataTypes) {
+            Map<String, TypeInformation> dataTypes) {
         if (redisValueDataStructure == RedisValueDataStructure.column) {
-            Row row = new Row(2);
+            Row row = createRowDataForRow(value, dataTypes);
             row.setField(
-                    0,
+                    KEY,
                     RedisRowConverter.dataTypeFromString(
-                            dataTypes.get(0), key));
-            if (value == null) {
-                row.setField(0, null);
-                return row;
-            }
-
-            row.setField(
-                    1,
-                    RedisRowConverter.dataTypeFromString(dataTypes.get(1), value));
+                            Types.STRING, String.valueOf(key)));
             return row;
         }
 
@@ -91,23 +87,24 @@ public class RedisResultWrapper {
      * @param value
      * @return
      */
-    public static Row createRowDataForRow(String value, List<TypeInformation> dataTypes) {
-        Row row = new Row(dataTypes.size());
-        if (value == null) {
+    public static Row createRowDataForRow(String value,
+                                          Map<String, TypeInformation> dataTypes) {
+        Row row = Row.withNames();
+        row.setField(VALUE, value);
+        if (dataTypes == null || dataTypes.isEmpty()) {
             return row;
         }
 
-        String[] values = value.split(CACHE_SEPERATOR);
-        for (int i = 0; i < dataTypes.size(); i++) {
-            if (i < values.length) {
-                row.setField(
-                        i,
-                        RedisRowConverter.dataTypeFromString(
-                                dataTypes.get(i), values[i]));
-            } else {
-                row.setField(i, null);
-            }
+        Map<String, Object> jsonMap = deserializeString(value);
+        if (jsonMap != null && !jsonMap.isEmpty()) {
+            row.setField(VALUE, null); // unify typeInfo
         }
+
+        dataTypes.forEach((key, type) ->
+                row.setField(
+                        key,
+                        RedisRowConverter.dataTypeFromString(
+                                type, String.valueOf(jsonMap.get(key)))));
         return row;
     }
 
@@ -121,45 +118,112 @@ public class RedisResultWrapper {
             Object[] keys,
             String value,
             RedisValueDataStructure redisValueDataStructure,
-            List<TypeInformation> dataTypes) {
+            Map<String, TypeInformation> dataTypes) {
         if (redisValueDataStructure == RedisValueDataStructure.column) {
-            Row row = new Row(3);
+            Row row = createRowDataForRow(value, dataTypes);
             row.setField(
-                    0,
+                    KEY,
                     RedisRowConverter.dataTypeFromString(
-                            dataTypes.get(0), String.valueOf(keys[0])));
+                            Types.STRING, String.valueOf(keys[0])));
             row.setField(
-                    1,
+                    FIELD,
                     RedisRowConverter.dataTypeFromString(
-                            dataTypes.get(1), String.valueOf(keys[1])));
-
-            if (value == null) {
-                return row;
-            }
-            row.setField(
-                    2,
-                    RedisRowConverter.dataTypeFromString(dataTypes.get(2), value));
+                            Types.STRING, String.valueOf(keys[1])));
             return row;
         }
+
         return createRowDataForRow(value, dataTypes);
     }
 
-    public static Row createRowDataForSortedSet(
-            Object[] keys, Double value, List<TypeInformation> dataTypes) {
-        Row row = new Row(3);
-        row.setField(
-                0,
-                RedisRowConverter.dataTypeFromString(
-                        dataTypes.get(0), String.valueOf(keys[0])));
-        row.setField(
-                2,
-                RedisRowConverter.dataTypeFromString(
-                        dataTypes.get(2), String.valueOf(keys[1])));
+    public static List<Row> createRowDataForHashAll(
+            Object[] keys,
+            Map<String, String> map,
+            RedisValueDataStructure redisValueDataStructure,
+            Map<String, TypeInformation> dataTypes) {
+        List<Row> list = new ArrayList<>();
 
-        if (value == null) {
+        if (redisValueDataStructure == RedisValueDataStructure.column) {
+            map.forEach((field, value) -> {
+                Row row = createRowDataForRow(value, dataTypes);
+                row.setField(
+                        KEY,
+                        RedisRowConverter.dataTypeFromString(
+                                Types.STRING, String.valueOf(keys[0])));
+                row.setField(
+                        FIELD,
+                        RedisRowConverter.dataTypeFromString(
+                                Types.STRING, field));
+                list.add(row);
+            });
+            return list;
+        }
+
+        Collection<String> values = map.values();
+        for (String value : values) {
+            Row row = createRowDataForRow(value, dataTypes);
+            list.add(row);
+        }
+        return list;
+    }
+
+    public static Row createRowDataForSortedSet(
+            Object[] keys,
+            Double value,
+            RedisValueDataStructure redisValueDataStructure) {
+        Row row = Row.withNames();
+        if (redisValueDataStructure == RedisValueDataStructure.column) {
+            row.setField(
+                    KEY,
+                    RedisRowConverter.dataTypeFromString(
+                            Types.STRING, String.valueOf(keys[0])));
+            row.setField(
+                    VALUE,
+                    RedisRowConverter.dataTypeFromString(
+                            Types.STRING, String.valueOf(keys[1])));
+
+            row.setField(SCORE, value);
+        } else {
+            row.setField(VALUE, value);
+        }
+        return row;
+    }
+
+    public static Row createRowDataForSortedSet(
+            Object[] keys,
+            ScoredValue<String> scoredValue,
+            RedisValueDataStructure redisValueDataStructure,
+            Map<String, TypeInformation> dataTypes) {
+        if (redisValueDataStructure == RedisValueDataStructure.column) {
+            Row row = createRowDataForRow(scoredValue.getValue(), dataTypes);
+            row.setField(
+                    KEY,
+                    RedisRowConverter.dataTypeFromString(
+                            Types.STRING, String.valueOf(keys[0])));
+            row.setField(
+                    SCORE,
+                    RedisRowConverter.dataTypeFromString(
+                            Types.DOUBLE, String.valueOf(scoredValue.getScore())));
             return row;
         }
-        row.setField(1, value);
-        return row;
+
+        return createRowDataForRow(scoredValue.getValue(), dataTypes);
+    }
+
+    public static String serializeObject(Object object) {
+        try {
+            return objectMapper.writeValueAsString(object);
+        } catch (JsonProcessingException e) {
+            // ignore
+        }
+        return String.valueOf(object);
+    }
+
+    public static Map<String, Object> deserializeString(String str) {
+        try {
+            return objectMapper.readValue(str, Map.class);
+        } catch (JsonProcessingException e) {
+            // ignore
+        }
+        return null;
     }
 }

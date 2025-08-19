@@ -18,20 +18,27 @@
 
 package org.apache.flink.streaming.connectors.redis.container;
 
+import io.lettuce.core.KeyScanCursor;
 import io.lettuce.core.KeyValue;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
+import io.lettuce.core.ScanArgs;
+import io.lettuce.core.ScanCursor;
+import io.lettuce.core.ScoredValue;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static org.apache.commons.collections.CollectionUtils.isNotEmpty;
 
 /**
  * Redis command container if we want to connect to a single Redis server or to Redis sentinels If
@@ -56,7 +63,9 @@ public class RedisContainer implements RedisCommandsContainer, Closeable {
         this.redisClient = redisClient;
     }
 
-    /** Closes the redisClient instances. */
+    /**
+     * Closes the redisClient instances.
+     */
     @Override
     public void close() {
         this.connection.close();
@@ -412,20 +421,48 @@ public class RedisContainer implements RedisCommandsContainer, Closeable {
     }
 
     @Override
-    public RedisFuture<List<KeyValue>> mget(String keyPattern)  throws Exception{
+    public RedisFuture<List<KeyValue>> mget(Set<String> keys) throws Exception {
         try {
-            RedisFuture<List<String>> keys = asyncCommands.keys(keyPattern);
-            List<String> list = keys.get();
-            return asyncCommands.mget(list.toArray(new String[0]));
+            return asyncCommands.mget(keys.toArray());
         } catch (Exception e) {
             if (LOG.isErrorEnabled()) {
                 LOG.error(
-                        "Cannot send Redis message with command mget to keyPattern {} error message {}",
+                        "Cannot send Redis message with command mget to keys {} error message {}",
+                        String.join(",", keys),
+                        e.getMessage());
+            }
+            throw e;
+        }
+    }
+
+    @Override
+    public Set<String> scanKeys(String keyPattern, long count) throws Exception {
+        // 使用 scan 方法逐步获取匹配的键
+        Set<String> keySet = new HashSet<>();
+        try {
+            ScanArgs scanArgs = ScanArgs.Builder.limit(count).match(keyPattern);
+            ScanCursor scanCursor = ScanCursor.INITIAL;
+            do {
+                KeyScanCursor<String> keyScanCursor = (KeyScanCursor) asyncCommands.scan(scanCursor, scanArgs).get();
+                if (keyScanCursor != null) {
+                    if (isNotEmpty(keyScanCursor.getKeys())) {
+                        keySet.addAll(keyScanCursor.getKeys());
+                    }
+                    scanCursor = keyScanCursor;
+                } else {
+                    scanCursor = ScanCursor.FINISHED;
+                }
+            } while (!scanCursor.isFinished());
+        } catch (Exception e) {
+            if (LOG.isErrorEnabled()) {
+                LOG.error(
+                        "Cannot send Redis message with command scanKeys to keyPattern {} error message {}",
                         keyPattern,
                         e.getMessage());
             }
             throw e;
         }
+        return keySet;
     }
 
     @Override
@@ -591,6 +628,23 @@ public class RedisContainer implements RedisCommandsContainer, Closeable {
     }
 
     @Override
+    public RedisFuture<List<ScoredValue<String>>> zrangeWithScores(String key, long start, long end) {
+        try {
+            return asyncCommands.zrangeWithScores(key, start, end);
+        } catch (Exception e) {
+            if (LOG.isErrorEnabled()) {
+                LOG.error(
+                        "Cannot send Redis message with command zrangeWithScores to key {} start {} end {} error message {}",
+                        key,
+                        start,
+                        end,
+                        e.getMessage());
+            }
+            throw e;
+        }
+    }
+
+    @Override
     public RedisFuture<List> zrange(String key, long start, long stop) {
         try {
             return asyncCommands.zrange(key, start, stop);
@@ -617,6 +671,21 @@ public class RedisContainer implements RedisCommandsContainer, Closeable {
                         "Cannot send Redis message with command srandmember to key {} count {}error message {}",
                         key,
                         count,
+                        e.getMessage());
+            }
+            throw e;
+        }
+    }
+
+    @Override
+    public RedisFuture<Set> smembers(String key) {
+        try {
+            return asyncCommands.smembers(key);
+        } catch (Exception e) {
+            if (LOG.isErrorEnabled()) {
+                LOG.error(
+                        "Cannot send Redis message with command srandmember to key {} error message {}",
+                        key,
                         e.getMessage());
             }
             throw e;
