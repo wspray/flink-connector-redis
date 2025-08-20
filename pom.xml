@@ -43,9 +43,9 @@ under the License.
     </properties>
 
 
-    <groupId>io.github.jeff-zou</groupId>
+    <groupId>io.github.wspray</groupId>
     <artifactId>flink-connector-redis</artifactId>
-    <version>1.4.3</version>
+    <version>1.19.3</version>
     <packaging>jar</packaging>
 
     <distributionManagement>
@@ -282,7 +282,7 @@ under the License.
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
+            <!--<plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>
                 <version>${maven-gpg-plugin.version}</version>
@@ -320,7 +320,7 @@ under the License.
                             <file>style/license-header</file>
                         </licenseHeader>
 
-                        <!-- \# refers to the static imports -->
+                        &lt;!&ndash; \# refers to the static imports &ndash;&gt;
                         <importOrder>
                             <order>com,org,,javax,java,scala,\#</order>
                         </importOrder>
@@ -337,7 +337,7 @@ under the License.
                         <phase>compile</phase>
                     </execution>
                 </executions>
-            </plugin>
+            </plugin>-->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

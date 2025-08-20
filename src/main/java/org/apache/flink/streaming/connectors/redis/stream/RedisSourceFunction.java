@@ -38,7 +38,6 @@ import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -159,14 +158,12 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
             case MGET: {
                 Set<String> keys = Arrays.stream(key.split(",")).collect(Collectors.toSet());
                 List<KeyValue> results = this.redisCommandsContainer.mget(keys).get();
-                List<Row> rows = new ArrayList<>(results.size());
                 for (KeyValue keyValue : results) {
                     Row row =
                             RedisResultWrapper.createRowDataForString(
                                     (String) keyValue.getKey(), (String) keyValue.getValue(), redisValueDataStructure, dataTypes);
-                    rows.add(row);
+                    ctx.collect(row);
                 }
-                ctx.collect(rows);
                 break;
             }
             case HGET: {

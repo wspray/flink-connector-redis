@@ -18,14 +18,13 @@
 
 package org.apache.flink.streaming.connectors.redis.stream;
 
-import com.ververica.cdc.connectors.shaded.com.fasterxml.jackson.annotation.JsonInclude;
-import com.ververica.cdc.connectors.shaded.com.fasterxml.jackson.core.JsonProcessingException;
-import com.ververica.cdc.connectors.shaded.com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisFuture;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonInclude;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.streaming.connectors.redis.command.RedisCommand;
 import org.apache.flink.streaming.connectors.redis.command.RedisCommandDescription;
@@ -490,8 +489,8 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
         }
         try {
             return mapper.writeValueAsString(map);
-        } catch (JsonProcessingException e) {
-            LOG.error("JsonProcessingException when getAllValueStr", e);
+        } catch (Exception e) {
+            LOG.error("JsonProcessing Exception when getAllValueStr", e);
         }
         return row.toString();
     }

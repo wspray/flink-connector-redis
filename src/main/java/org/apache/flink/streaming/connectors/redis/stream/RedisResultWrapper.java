@@ -21,7 +21,6 @@ package org.apache.flink.streaming.connectors.redis.stream;
 import io.lettuce.core.ScoredValue;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.streaming.connectors.redis.config.RedisValueDataStructure;
 import org.apache.flink.streaming.connectors.redis.stream.converter.RedisRowConverter;
@@ -212,7 +211,7 @@ public class RedisResultWrapper {
     public static String serializeObject(Object object) {
         try {
             return objectMapper.writeValueAsString(object);
-        } catch (JsonProcessingException e) {
+        } catch (Exception e) {
             // ignore
         }
         return String.valueOf(object);
@@ -221,7 +220,7 @@ public class RedisResultWrapper {
     public static Map<String, Object> deserializeString(String str) {
         try {
             return objectMapper.readValue(str, Map.class);
-        } catch (JsonProcessingException e) {
+        } catch (Exception e) {
             // ignore
         }
         return null;

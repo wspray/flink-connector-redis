@@ -80,11 +80,12 @@ public class DataSinkBuilderTest extends TestRedisConfigBase {
         row.setField("value", "math");
         RedisSinkFunction<Row> redisSinkFunction = RedisSinkFunctionBuilder.builder()
                 .setFlinkConfigBase(conf)
+                .setKeyName("test:101")
+//                .setIfAbsent(true)
 //                .setTTL(60)
 //                .setTTLKeyNotAbsent(true)
 //                .setExpireOnTime("14:22")
 //                .setAllRowOutPut()
-                .setKeyName("test:101")
                 .setSinkSet(null)
                 .build();
 
