@@ -27,6 +27,7 @@ import org.apache.flink.streaming.api.functions.async.RichAsyncFunction;
 import org.apache.flink.streaming.connectors.redis.command.RedisCommand;
 import org.apache.flink.streaming.connectors.redis.command.RedisCommandBaseDescription;
 import org.apache.flink.streaming.connectors.redis.command.RedisJoinCommand;
+import org.apache.flink.streaming.connectors.redis.command.RedisSelectCommand;
 import org.apache.flink.streaming.connectors.redis.config.FlinkConfigBase;
 import org.apache.flink.streaming.connectors.redis.config.RedisJoinConfig;
 import org.apache.flink.streaming.connectors.redis.config.RedisOptions;
@@ -40,45 +41,46 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.apache.flink.streaming.connectors.redis.table.RedisDynamicTableFactory.CACHE_SEPERATOR;
 
-/** redis lookup function for DataStream API. */
+/**
+ * redis lookup function for DataStream API.
+ */
 public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
 
     private static final Logger LOG = LoggerFactory.getLogger(RedisLookupFunction.class);
 
     private RedisCommand redisCommand;
+    private ReadableConfig readableConfig;
     private FlinkConfigBase flinkConfigBase;
     private RedisCommandsContainer redisCommandsContainer;
 
     private final long cacheMaxSize;
     private final long cacheTtl;
     private final int maxRetryTimes;
-    private final Map<String,TypeInformation> dataTypes;
-    private final boolean loadAll;
+    private final Map<String, TypeInformation> dataTypes;
     private final RedisValueDataStructure redisValueDataStructure;
     private Cache<String, Object> cache;
+    private String[] queryParameter;
 
     public RedisLookupFunction(
             FlinkConfigBase flinkConfigBase,
             RedisMapper redisMapper,
             RedisJoinConfig redisJoinConfig,
-            Map<String,TypeInformation> dataTypes,
+            Map<String, TypeInformation> dataTypes,
             ReadableConfig readableConfig) {
         Preconditions.checkNotNull(
                 flinkConfigBase, "Redis connection pool config should not be null");
         Preconditions.checkNotNull(redisMapper, "Redis Mapper can not be null");
 
         this.flinkConfigBase = flinkConfigBase;
+        this.readableConfig = readableConfig;
         this.cacheTtl = redisJoinConfig.getCacheTtl();
         this.cacheMaxSize = redisJoinConfig.getCacheMaxSize();
         this.maxRetryTimes = readableConfig.get(RedisOptions.MAX_RETRIES);
-        this.loadAll = redisJoinConfig.getLoadAll();
         this.redisValueDataStructure = readableConfig.get(RedisOptions.VALUE_DATA_STRUCTURE);
 
         RedisCommandBaseDescription redisCommandDescription = redisMapper.getCommandDescription();
@@ -104,35 +106,34 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                     rowData = (Row) cache.getIfPresent(String.valueOf(keys[0]));
                     break;
                 case HGET:
-                    if (loadAll) {
-                        Map<String, String> map =
-                                (Map<String, String>) cache.getIfPresent(String.valueOf(keys[0]));
-                        if (map != null) {
-                            resultFuture.complete(
-                                    Collections.singleton(
-                                            RedisResultWrapper.createRowDataForHash(
-                                                    keys,
-                                                    map.get(String.valueOf(keys[1])),
-                                                    redisValueDataStructure,
-                                                    dataTypes)));
-                            return;
-                        }
-                    } else {
-                        String key =
-                                new StringBuilder(String.valueOf(keys[0]))
-                                        .append(CACHE_SEPERATOR)
-                                        .append(String.valueOf(keys[1]))
-                                        .toString();
-                        rowData = (Row) cache.getIfPresent(key);
-                    }
-                    break;
-                case ZSCORE: {
                     String key =
                             new StringBuilder(String.valueOf(keys[0]))
                                     .append(CACHE_SEPERATOR)
                                     .append(String.valueOf(keys[1]))
                                     .toString();
                     rowData = (Row) cache.getIfPresent(key);
+                    break;
+                case HGETALL:
+                    Map<String, String> map =
+                            (Map<String, String>) cache.getIfPresent(String.valueOf(keys[0]));
+                    if (map != null) {
+                        resultFuture.complete(
+                                Collections.singleton(
+                                        RedisResultWrapper.createRowDataForHash(
+                                                keys,
+                                                map.get(String.valueOf(keys[1])),
+                                                redisValueDataStructure,
+                                                dataTypes)));
+                        return;
+                    }
+                    break;
+                case ZSCORE: {
+                    String keyForZScore =
+                            new StringBuilder(String.valueOf(keys[0]))
+                                    .append(CACHE_SEPERATOR)
+                                    .append(String.valueOf(keys[1]))
+                                    .toString();
+                    rowData = (Row) cache.getIfPresent(keyForZScore);
                     break;
                 }
                 default:
@@ -188,11 +189,6 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                 break;
             }
             case HGET: {
-                if (loadAll) {
-                    loadAllElementsForMap(resultFuture, keys);
-                    return;
-                }
-
                 this.redisCommandsContainer
                         .hget(String.valueOf(keys[0]), String.valueOf(keys[1]))
                         .thenAccept(
@@ -216,6 +212,9 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
 
                 break;
             }
+            case HGETALL:
+                loadAllElementsForMap(resultFuture, keys);
+                return;
             case ZSCORE: {
                 this.redisCommandsContainer
                         .zscore(String.valueOf(keys[0]), String.valueOf(keys[1]))
@@ -270,13 +269,20 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                 redisCommand.getJoinCommand() != RedisJoinCommand.NONE,
                 String.format("the command %s do not support join.", redisCommand.name()));
 
-        if (this.loadAll) {
+        if (redisCommand.getJoinCommand() == RedisJoinCommand.HGETALL) {
             Preconditions.checkArgument(
                     cacheMaxSize != -1 && cacheTtl != -1,
                     "cache must be opened by cacheMaxSize and cacheTtl when you want to load all elements to cache.");
-            Preconditions.checkArgument(
-                    redisCommand.getJoinCommand() == RedisJoinCommand.HGET,
-                    "just data structure is Map of redis support load all.");
+        }
+
+        validator();
+        this.queryParameter = new String[2];
+        this.queryParameter[0] = this.readableConfig.get(RedisOptions.SCAN_KEY);
+
+        if (redisCommand.getJoinCommand() == RedisJoinCommand.HGET) {
+            this.queryParameter[1] = this.readableConfig.get(RedisOptions.SCAN_ADDITION_KEY);
+        } else if (redisCommand.getJoinCommand() == RedisJoinCommand.ZSCORE) {
+            this.queryParameter[1] = this.readableConfig.get(RedisOptions.SCAN_ADDITION_KEY);
         }
 
         try {
@@ -292,9 +298,9 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                 cacheMaxSize == -1 || cacheTtl == -1
                         ? null
                         : CacheBuilder.newBuilder()
-                                .expireAfterWrite(cacheTtl, TimeUnit.SECONDS)
-                                .maximumSize(cacheMaxSize)
-                                .build();
+                        .expireAfterWrite(cacheTtl, TimeUnit.SECONDS)
+                        .maximumSize(cacheMaxSize)
+                        .build();
     }
 
     @Override
@@ -306,6 +312,44 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         if (cache != null) {
             cache.cleanUp();
             cache = null;
+        }
+    }
+
+    private void validator() {
+        Preconditions.checkNotNull(
+                this.readableConfig.get(RedisOptions.SCAN_KEY),
+                "the %s for source can not be null",
+                RedisOptions.SCAN_KEY.key());
+
+        Preconditions.checkArgument(
+                redisCommand.getSelectCommand() != RedisSelectCommand.NONE,
+                String.format("the command %s do not support query.", redisCommand.name()));
+
+        if (redisCommand.getSelectCommand() == RedisSelectCommand.HGET) {
+            Preconditions.checkNotNull(
+                    this.readableConfig.get(RedisOptions.SCAN_ADDITION_KEY),
+                    "must set field value of Map to %s",
+                    RedisOptions.SCAN_ADDITION_KEY.key());
+        } else if (redisCommand.getSelectCommand() == RedisSelectCommand.ZSCORE) {
+            Preconditions.checkNotNull(
+                    this.readableConfig.get(RedisOptions.SCAN_ADDITION_KEY),
+                    "must set member value of SortedSet to %s",
+                    RedisOptions.SCAN_ADDITION_KEY.key());
+//        } else if (redisCommand.getSelectCommand() == RedisSelectCommand.LRANGE) {
+//            Preconditions.checkNotNull(
+//                    this.readableConfig.get(RedisOptions.SCAN_RANGE_START),
+//                    "the %s must not be null when query list",
+//                    RedisOptions.SCAN_RANGE_START.key());
+//
+//            Preconditions.checkNotNull(
+//                    this.readableConfig.get(RedisOptions.SCAN_RANGE_STOP),
+//                    "the %s must not be null when query list",
+//                    RedisOptions.SCAN_RANGE_STOP.key());
+        } else if (redisCommand.getSelectCommand() == RedisSelectCommand.SRANDMEMBER) {
+            Preconditions.checkNotNull(
+                    this.readableConfig.get(RedisOptions.SCAN_SRANDMEMBER_COUNT),
+                    "the %s must not be null when query set",
+                    RedisOptions.SCAN_SRANDMEMBER_COUNT.key());
         }
     }
 }
