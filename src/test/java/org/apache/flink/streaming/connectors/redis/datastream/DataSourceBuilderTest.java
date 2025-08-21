@@ -86,7 +86,7 @@ public class DataSourceBuilderTest extends TestRedisConfigBase {
 //                        .setQueryZScore("item1")
                 .setKey("student:*")
                 .setResolvedSchema(map)
-                .setValueOnly()
+                .setValueOnly(true)
                 .setQueryGet()
                 .checkAndInferType();
         RowTypeInfo rowTypeInfo = builder.getRowTypeInfo();

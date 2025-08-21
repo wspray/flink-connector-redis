@@ -80,8 +80,10 @@ public class RedisSinkFunctionBuilder<T> {
         return this;
     }
 
-    public RedisSinkFunctionBuilder<T> setAllRowOutPut() {
-        configuration.set(RedisOptions.VALUE_DATA_STRUCTURE, RedisValueDataStructure.row);
+    public RedisSinkFunctionBuilder<T> setAllRowOutPut(boolean allRowOutPut) {
+        if (allRowOutPut) {
+            configuration.set(RedisOptions.VALUE_DATA_STRUCTURE, RedisValueDataStructure.row);
+        }
         return this;
     }
 

@@ -88,8 +88,10 @@ public class RedisSourceFunctionBuilder<T> {
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setValueOnly() {
-        configuration.set(RedisOptions.VALUE_DATA_STRUCTURE, RedisValueDataStructure.row);
+    public RedisSourceFunctionBuilder<T> setValueOnly(boolean valueOnly) {
+        if (valueOnly) {
+            configuration.set(RedisOptions.VALUE_DATA_STRUCTURE, RedisValueDataStructure.row);
+        }
         return this;
     }
 

@@ -24,7 +24,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.redis.config.FlinkClusterConfig;
 import org.apache.flink.streaming.connectors.redis.config.FlinkConfigBase;
-import org.apache.flink.streaming.connectors.redis.config.FlinkSingleConfig;
 import org.apache.flink.streaming.connectors.redis.stream.RedisSinkFunction;
 import org.apache.flink.streaming.connectors.redis.stream.RedisSinkFunctionBuilder;
 import org.apache.flink.streaming.connectors.redis.table.base.TestRedisConfigBase;
@@ -32,7 +31,6 @@ import org.apache.flink.types.Row;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Created by jeff.zou on 2021/2/26.
@@ -76,8 +74,8 @@ public class DataSinkBuilderTest extends TestRedisConfigBase {
 //                .setTTL(60)
 //                .setTTLKeyNotAbsent(true)
 //                .setExpireOnTime("14:22")
-                .setAllRowOutPut()
-                .setSinkHSet("subject","scope")
+                .setAllRowOutPut(true)
+                .setSinkHSet("subject", "scope")
                 .build();
 
         // set example
