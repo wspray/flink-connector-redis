@@ -24,6 +24,7 @@ import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
+import org.apache.flink.streaming.connectors.redis.config.FlinkClusterConfig;
 import org.apache.flink.streaming.connectors.redis.config.FlinkConfigBase;
 import org.apache.flink.streaming.connectors.redis.config.FlinkSingleConfig;
 import org.apache.flink.streaming.connectors.redis.stream.RedisSourceFunction;
@@ -42,16 +43,17 @@ public class DataSourceBuilderTest extends TestRedisConfigBase {
 
     @Test
     public void testDateStreamInsert() throws Exception {
-        FlinkConfigBase conf =
-                new FlinkSingleConfig.Builder()
-                        .setHost(REDIS_HOST)
-                        .setPort(REDIS_PORT)
-                        .setPassword(REDIS_PASSWORD)
-                        .build();
+//        FlinkConfigBase conf =
+//                new FlinkSingleConfig.Builder()
+//                        .setHost(REDIS_HOST)
+//                        .setPort(REDIS_PORT)
+//                        .setPassword(REDIS_PASSWORD)
+//                        .build();
 
-//        FlinkConfigBase conf = new FlinkClusterConfig.Builder()
+        FlinkConfigBase conf = new FlinkClusterConfig.Builder()
 //                .setNodesInfo("10.130.18.76:6381,10.130.18.76:6379,10.130.18.76:6383")
-//                .build();
+                .setNodesInfo("127.0.0.1:6379")
+                .build();
 
 //        FlinkConfigBase conf = new FlinkSentinelConfig.Builder()
 //                .setSentinelsInfo("")

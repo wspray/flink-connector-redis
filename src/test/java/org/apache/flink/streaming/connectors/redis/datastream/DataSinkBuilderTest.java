@@ -32,6 +32,7 @@ import org.apache.flink.types.Row;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Created by jeff.zou on 2021/2/26.
@@ -59,41 +60,46 @@ public class DataSinkBuilderTest extends TestRedisConfigBase {
 //                .build();
 
         // hset example
-//        Row row = Row.withNames();
-//        row.setField("name", "tom");
-//        row.setField("subject", "math");
-//        row.setField("scope", "299");
-//
-//        RedisSinkFunction<Row> redisSinkFunction = RedisSinkFunctionBuilder.builder()
-//                .setFlinkConfigBase(conf)
-//                .setKeyName("name")
-////                .setTTL(60)
-////                .setTTLKeyNotAbsent(true)
-////                .setExpireOnTime("14:22")
-//                .setAllRowOutPut()
-//                .setSinkHSet("subject","scope")
-//                .build();
-
-        // set example
         Row row = Row.withNames();
-        row.setField("key", "100");
-        row.setField("value", "math");
+        row.setField("name", "tom");
+        row.setField("subject", "math");
+        row.setField("scope", null);
+
+        TypeInformation<Row> rowTypeInfo = Types.ROW_NAMED(
+                new String[]{"name", "subject", "scope"},
+                Types.STRING, Types.STRING, Types.STRING
+        );
+
         RedisSinkFunction<Row> redisSinkFunction = RedisSinkFunctionBuilder.builder()
                 .setFlinkConfigBase(conf)
-                .setKeyName("test:101")
-//                .setIfAbsent(true)
+                .setKeyName("name")
 //                .setTTL(60)
 //                .setTTLKeyNotAbsent(true)
 //                .setExpireOnTime("14:22")
-//                .setAllRowOutPut()
-                .setSinkSet(null)
+                .setAllRowOutPut()
+                .setSinkHSet("subject","scope")
                 .build();
 
+        // set example
+//        Row row = Row.withNames();
+//        row.setField("key", "100");
+//        row.setField("value", "math");
+//        RedisSinkFunction<Row> redisSinkFunction = RedisSinkFunctionBuilder.builder()
+//                .setFlinkConfigBase(conf)
+//                .setKeyName("test:101")
+////                .setIfAbsent(true)
+////                .setTTL(60)
+////                .setTTLKeyNotAbsent(true)
+////                .setExpireOnTime("14:22")
+////                .setAllRowOutPut()
+//                .setSinkSet(null)
+//                .build();
+//        TypeInformation<Row> rowTypeInfo = Types.ROW_NAMED(
+//                new String[]{"key", "value"},
+//                Types.STRING, Types.STRING
+//        );
+
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        TypeInformation<Row> rowTypeInfo = Types.ROW_NAMED(
-                new String[]{"key", "value"},
-                Types.STRING, Types.STRING
-        );
         DataStream<Row> dataStream = env.fromData(
                 Arrays.asList(row, row),
                 rowTypeInfo
