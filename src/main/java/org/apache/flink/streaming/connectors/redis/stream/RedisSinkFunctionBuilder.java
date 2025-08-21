@@ -92,8 +92,8 @@ public class RedisSinkFunctionBuilder<T> {
         return this;
     }
 
-    public RedisSinkFunctionBuilder<T> setIfAbsent(boolean ifAbsent) {
-        configuration.set(RedisOptions.SET_IF_ABSENT, ifAbsent);
+    public RedisSinkFunctionBuilder<T> setKeyIfNotExists(boolean notExistsKey) {
+        configuration.set(RedisOptions.SET_IF_ABSENT, notExistsKey);
         return this;
     }
 
@@ -102,8 +102,8 @@ public class RedisSinkFunctionBuilder<T> {
         return this;
     }
 
-    public RedisSinkFunctionBuilder<T> setTTLKeyNotAbsent(boolean ttlKeyNotAbsent) {
-        configuration.set(RedisOptions.TTL_KEY_NOT_ABSENT, ttlKeyNotAbsent);
+    public RedisSinkFunctionBuilder<T> setTTLIfNotExists(boolean notExistsTtl) {
+        configuration.set(RedisOptions.TTL_KEY_NOT_ABSENT, notExistsTtl);
         return this;
     }
 
