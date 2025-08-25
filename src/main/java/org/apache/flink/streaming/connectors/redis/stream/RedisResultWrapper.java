@@ -95,14 +95,16 @@ public class RedisResultWrapper {
         }
 
         Map<String, Object> jsonMap = deserializeString(value);
-        if (jsonMap != null && !jsonMap.isEmpty()) {
+        boolean successDeserialize = jsonMap != null && !jsonMap.isEmpty();
+        if (successDeserialize) {
             row.setField(VALUE, null); // unify typeInfo
         }
 
         dataTypes.forEach((key, type) ->
                 row.setField(
                         key,
-                        RedisRowConverter.dataTypeFromString(
+                        !successDeserialize ?
+                                null : RedisRowConverter.dataTypeFromString(
                                 type, String.valueOf(jsonMap.get(key)))));
         return row;
     }

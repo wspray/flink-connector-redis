@@ -76,11 +76,6 @@ public class RedisLookupFunctionBuilder<T> {
         return this;
     }
 
-    public RedisLookupFunctionBuilder<T> setMaxRetryTimes(int maxRetryTimes) {
-        configuration.set(RedisOptions.MAX_RETRIES, maxRetryTimes);
-        return this;
-    }
-
     public RedisLookupFunctionBuilder<T> setKeyName(String keyName) {
         configuration.set(RedisOptions.CUSTOM_KEY_NAME, keyName);
         return this;
@@ -154,6 +149,9 @@ public class RedisLookupFunctionBuilder<T> {
     }
 
     public RedisLookupFunction build() {
+        if (joinConfig == null) {
+            joinConfig = new RedisJoinConfig.Builder().build(); // no cache
+        }
         return new RedisLookupFunction(redisMapper, configuration, flinkConfigBase, map, joinConfig);
     }
 

@@ -79,8 +79,8 @@ public class DataLookUpBuilderTest extends TestRedisConfigBase {
 //        configuration.set(VALUE_DATA_STRUCTURE, RedisValueDataStructure.row1);
 
 
-        configuration.set(RedisOptions.CUSTOM_KEY_NAME, "student:{id}");
-        RowRedisQueryMapper redisMapper = new RowRedisQueryMapper(RedisCommand.GET);
+//        configuration.set(RedisOptions.CUSTOM_KEY_NAME, "student:{id}");
+//        RowRedisQueryMapper redisMapper = new RowRedisQueryMapper(RedisCommand.GET);
 
 //        configuration.set(RedisOptions.CUSTOM_KEY_NAME, "student:{id}");
 //        RowRedisQueryMapper redisMapper = new RowRedisQueryMapper(RedisCommand.MGET);
@@ -97,20 +97,20 @@ public class DataLookUpBuilderTest extends TestRedisConfigBase {
         map.put("gender", Types.INT);
         map.put("hobbies", Types.STRING);
         RedisJoinConfig.Builder joinConfigBuilder = new RedisJoinConfig.Builder();
-//        joinConfigBuilder
-//                .setCacheTTL(10)
-//                .setCacheMaxSize(500)
-//                .setLoadAll(true);
+        joinConfigBuilder
+                .setCacheTTL(10)
+                .setCacheMaxSize(500)
+                .setLoadAll(true);
         RedisJoinConfig joinConfig = joinConfigBuilder.build();
 //        RedisLookupFunction lookupFunction =
 //                new RedisLookupFunction(redisMapper, configuration, conf, map, joinConfig);
 
         RedisLookupFunctionBuilder<Row> builder = RedisLookupFunctionBuilder.builder()
-                .setRedisMapper(redisMapper)
                 .setFlinkConfigBase(conf)
                 .setResolvedSchema(map)
+//                .setMaxRetries(1)
                 .setRedisJoinConfig(joinConfig)
-                .setKeyName("student:{id}")
+                .setKeyName("student:{id2}")
                 .setQueryGet();
 
 
@@ -144,8 +144,7 @@ public class DataLookUpBuilderTest extends TestRedisConfigBase {
                 //保证顺序：异步返回的结果保证顺序，超时时间1秒，最大容量2，超出容量触发反压
                 .orderedWait(inputStream,
                         redisLookupFunction,
-                        10000L, TimeUnit.MILLISECONDS,
-                        200)
+                        1000L, TimeUnit.MILLISECONDS)
                 .setParallelism(1);
 
         orderedResult.addSink(new PrintSinkFunction<>("@@@", false));

@@ -65,11 +65,6 @@ public class RedisSinkFunctionBuilder<T> {
         return this;
     }
 
-    public RedisSinkFunctionBuilder<T> setMaxRetryTimes(int maxRetryTimes) {
-        configuration.set(RedisOptions.MAX_RETRIES, maxRetryTimes);
-        return this;
-    }
-
     public RedisSinkFunctionBuilder<T> setKeyName(String keyName) {
         configuration.set(RedisOptions.CUSTOM_KEY_NAME, keyName);
         return this;

@@ -71,11 +71,6 @@ public class RedisSourceFunctionBuilder<T> {
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setMaxRetryTimes(int maxRetryTimes) {
-        configuration.set(RedisOptions.MAX_RETRIES, maxRetryTimes);
-        return this;
-    }
-
     public RedisSourceFunctionBuilder<T> setKey(String key) {
         configuration.set(RedisOptions.SCAN_KEY, key);
         return this;

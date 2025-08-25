@@ -20,9 +20,9 @@ package org.apache.flink.streaming.connectors.redis.stream;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.calcite.shaded.com.google.common.cache.Cache;
-import org.apache.flink.calcite.shaded.com.google.common.cache.CacheBuilder;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.shaded.guava31.com.google.common.cache.Cache;
+import org.apache.flink.shaded.guava31.com.google.common.cache.CacheBuilder;
 import org.apache.flink.streaming.api.functions.async.ResultFuture;
 import org.apache.flink.streaming.api.functions.async.RichAsyncFunction;
 import org.apache.flink.streaming.connectors.redis.command.RedisCommand;
@@ -47,6 +47,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZRANGEWITHSCORES;
+import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZSCORE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.FIELD;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.KEY;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCORE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.VALUE;
 import static org.apache.flink.streaming.connectors.redis.stream.PlaceholderReplacer.replaceByTag;
 import static org.apache.flink.streaming.connectors.redis.table.RedisDynamicTableFactory.CACHE_SEPERATOR;
 
@@ -95,7 +101,33 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
     }
 
     @Override
-    public void asyncInvoke(Row input, ResultFuture<Row> resultFuture) throws Exception {
+    public void asyncInvoke(Row input, ResultFuture<Row> resultFuture) {
+        try {
+            asyncInvokeRow(input, resultFuture);
+        } catch (Exception e) {
+            Row outRow = Row.withNames();
+            outRow.setField(VALUE, null);
+            if (redisValueDataStructure != RedisValueDataStructure.row) {
+                outRow.setField(KEY, null);
+
+                if (redisCommand.name().contains("HGET")) {
+                    outRow.setField(FIELD, null);
+                } else if (redisCommand == ZSCORE || redisCommand == ZRANGEWITHSCORES) {
+                    outRow.setField(SCORE, null);
+                }
+            }
+
+            if (dataTypes != null && !dataTypes.isEmpty()) {
+                List<String> valueFieldNames = new ArrayList<>(dataTypes.keySet());
+                for (String fieldName : valueFieldNames) {
+                    outRow.setField(fieldName, null);
+                }
+            }
+            resultFuture.complete(Collections.singleton(mergeRow(input, outRow)));
+        }
+    }
+
+    public void asyncInvokeRow(Row input, ResultFuture<Row> resultFuture) throws Exception {
         String[] queryParameter = calcParamByCommand(input);
 
         // when use cache.

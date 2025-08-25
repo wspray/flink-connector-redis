@@ -211,7 +211,7 @@ under the License.
 <!--                </executions>-->
 <!--            </plugin>-->
 
-            <!--&lt;!&ndash; Source &ndash;&gt;
+            <!-- Source -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
@@ -226,7 +226,7 @@ under the License.
                     </execution>
                 </executions>
             </plugin>
-            &lt;!&ndash; Javadoc &ndash;&gt;
+            <!-- Javadoc -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
@@ -251,7 +251,7 @@ under the License.
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>-->
+            </plugin>
             <!--<plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>
