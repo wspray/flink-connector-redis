@@ -182,10 +182,12 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                         this.redisCommandsContainer
                                 .hgetAll(key)
                                 .get();
-                List<Row> row =
+                List<Row> rows =
                         RedisResultWrapper.createRowDataForHashAll(
                                 queryParameter, result, redisValueDataStructure, dataTypes);
-                ctx.collect(row);
+                for (Row row : rows) {
+                    ctx.collect(row);
+                }
                 break;
             }
             case LRANGE: {

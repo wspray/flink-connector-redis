@@ -10,6 +10,7 @@ import org.apache.flink.streaming.connectors.redis.config.FlinkClusterConfig;
 import org.apache.flink.streaming.connectors.redis.config.FlinkConfigBase;
 import org.apache.flink.streaming.connectors.redis.config.FlinkSentinelConfig;
 import org.apache.flink.streaming.connectors.redis.config.FlinkSingleConfig;
+import org.apache.flink.streaming.connectors.redis.config.RedisJoinConfig;
 import org.apache.flink.streaming.connectors.redis.config.RedisOptions;
 import org.apache.flink.streaming.connectors.redis.config.RedisValueDataStructure;
 import org.apache.flink.streaming.connectors.redis.mapper.RowRedisQueryMapper;
@@ -25,7 +26,6 @@ import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.Z
 import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZSCORE;
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.FIELD;
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.KEY;
-import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCAN_ADDITION_KEY;
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCORE;
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.VALUE;
 import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_CLUSTER;
@@ -33,132 +33,111 @@ import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.
 import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_SENTINEL;
 import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_SINGLE;
 
-public class RedisSourceFunctionBuilder<T> {
+public class RedisLookupFunctionBuilder<T> {
 
     private RowRedisQueryMapper redisMapper;
     private Configuration configuration = new Configuration();
     private FlinkConfigBase flinkConfigBase;
     private Map<String, TypeInformation> map;
-
+    private RedisJoinConfig joinConfig;
     private RowTypeInfo rowTypeInfo;
 
-    public static RedisSourceFunctionBuilder<Row> builder() {
-        return new RedisSourceFunctionBuilder<>();
+    public static RedisLookupFunctionBuilder<Row> builder() {
+        return new RedisLookupFunctionBuilder<>();
     }
 
-    public RedisSourceFunctionBuilder<T> setRedisMapper(RowRedisQueryMapper redisMapper) {
+    public RedisLookupFunctionBuilder<T> setRedisMapper(RowRedisQueryMapper redisMapper) {
         this.redisMapper = redisMapper;
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setFlinkConfigBase(FlinkConfigBase flinkConfigBase) {
+    public RedisLookupFunctionBuilder<T> setFlinkConfigBase(FlinkConfigBase flinkConfigBase) {
         this.flinkConfigBase = flinkConfigBase;
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setResolvedSchema(Map<String, TypeInformation> map) {
+    public RedisLookupFunctionBuilder<T> setResolvedSchema(Map<String, TypeInformation> map) {
         this.map = map;
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setConfiguration(Configuration configuration) {
+    public RedisLookupFunctionBuilder<T> setRedisJoinConfig(RedisJoinConfig joinConfig) {
+        this.joinConfig = joinConfig;
+        return this;
+    }
+
+    public RedisLookupFunctionBuilder<T> setConfiguration(Configuration configuration) {
         this.configuration = configuration;
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setConnectionTimeout(int timeout) {
+    public RedisLookupFunctionBuilder<T> setConnectionTimeout(int timeout) {
         configuration.set(RedisOptions.TIMEOUT, timeout);
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setMaxRetryTimes(int maxRetryTimes) {
+    public RedisLookupFunctionBuilder<T> setMaxRetryTimes(int maxRetryTimes) {
         configuration.set(RedisOptions.MAX_RETRIES, maxRetryTimes);
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setKey(String key) {
-        configuration.set(RedisOptions.SCAN_KEY, key);
+    public RedisLookupFunctionBuilder<T> setKeyName(String keyName) {
+        configuration.set(RedisOptions.CUSTOM_KEY_NAME, keyName);
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setScanCount(long scanCount) {
-        configuration.set(RedisOptions.SCAN_COUNT, scanCount);
+    public RedisLookupFunctionBuilder<T> setValueName(String valueName) {
+        configuration.set(RedisOptions.CUSTOM_VALUE_NAME, valueName);
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setValueOnly(boolean valueOnly) {
+    public RedisLookupFunctionBuilder<T> setValueOnly(boolean valueOnly) {
         if (valueOnly) {
             configuration.set(RedisOptions.VALUE_DATA_STRUCTURE, RedisValueDataStructure.row);
         }
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setMaxRetries(int maxRetries) {
+    public RedisLookupFunctionBuilder<T> setMaxRetries(int maxRetries) {
         configuration.set(RedisOptions.MAX_RETRIES, maxRetries);
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setQueryGet() {
-        this.redisMapper = new RowRedisQueryMapper(RedisCommand.MGET);
+    public RedisLookupFunctionBuilder<T> setQueryGet() {
+        this.redisMapper = new RowRedisQueryMapper(RedisCommand.GET);
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setQueryHGet(String field) {
+    public RedisLookupFunctionBuilder<T> setQueryHGet(String field) {
         Validate.isTrue(isNotEmpty(field), "empty field");
         this.redisMapper = new RowRedisQueryMapper(RedisCommand.HGET);
-        configuration.set(SCAN_ADDITION_KEY, field);
+        configuration.set(RedisOptions.CUSTOM_FIELD_NAME, field);
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setQueryHGetAll() {
+    public RedisLookupFunctionBuilder<T> setQueryHGetAll(String field) {
+        Validate.isTrue(isNotEmpty(field), "empty field");
         this.redisMapper = new RowRedisQueryMapper(RedisCommand.HGETALL);
+        configuration.set(RedisOptions.CUSTOM_FIELD_NAME, field);
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> setQueryRange() {
-        this.redisMapper = new RowRedisQueryMapper(RedisCommand.LRANGE);
-        return this;
-    }
-
-    public RedisSourceFunctionBuilder<T> setQueryRange(int start, int stop) {
-        this.redisMapper = new RowRedisQueryMapper(RedisCommand.LRANGE);
-        configuration.set(RedisOptions.SCAN_RANGE_START, start);
-        configuration.set(RedisOptions.SCAN_RANGE_STOP, stop);
-        return this;
-    }
-
-    public RedisSourceFunctionBuilder<T> setQuerySMembers() {
-        this.redisMapper = new RowRedisQueryMapper(RedisCommand.SMEMBERS);
-        return this;
-    }
-
-    public RedisSourceFunctionBuilder<T> setQuerySRandMember(int count) {
-        this.redisMapper = new RowRedisQueryMapper(RedisCommand.SADD);
-        configuration.set(RedisOptions.SCAN_SRANDMEMBER_COUNT, count);
-        return this;
-    }
-
-    public RedisSourceFunctionBuilder<T> setQueryZRangeWithScores() {
-        this.redisMapper = new RowRedisQueryMapper(ZRANGEWITHSCORES);
-        return this;
-    }
-
-    public RedisSourceFunctionBuilder<T> setQueryZScore(String member) {
+    public RedisLookupFunctionBuilder<T> setQueryZScore(String member) {
         Validate.isTrue(isNotEmpty(member), "empty member");
         this.redisMapper = new RowRedisQueryMapper(ZSCORE);
-        configuration.set(SCAN_ADDITION_KEY, member);
+        configuration.set(RedisOptions.CUSTOM_VALUE_NAME, member);
         return this;
     }
 
-    public RedisSourceFunctionBuilder<T> checkAndInferType() {
+    public RedisLookupFunctionBuilder<T> checkAndInferType(RowTypeInfo inputRowTypeInfo) {
         if (redisMapper == null) {
             throw new IllegalStateException("RedisMapper is required");
         }
         if (flinkConfigBase == null) {
             throw new IllegalStateException("FlinkConfigBase is required");
         }
-        if (configuration.get(RedisOptions.SCAN_KEY) == null) {
-            throw new IllegalStateException("SCAN_KEY is required");
+        if (configuration.get(RedisOptions.CUSTOM_KEY_NAME) == null) {
+            throw new IllegalStateException("custom_key_name is required");
         }
         if (flinkConfigBase instanceof FlinkSingleConfig) {
             configuration.setString(REDIS_MODE, REDIS_SINGLE);
@@ -169,20 +148,20 @@ public class RedisSourceFunctionBuilder<T> {
         }
 
         RedisCommand redisCommand = redisMapper.getRedisCommand();
-        inferRowTypeInfo(redisCommand);
+        inferRowTypeInfo(redisCommand, inputRowTypeInfo);
 
         return this;
     }
 
-    public RedisSourceFunction<T> build() {
-        return new RedisSourceFunction<>(redisMapper, configuration, flinkConfigBase, map);
+    public RedisLookupFunction build() {
+        return new RedisLookupFunction(redisMapper, configuration, flinkConfigBase, map, joinConfig);
     }
 
     public RowTypeInfo getRowTypeInfo() {
         return rowTypeInfo;
     }
 
-    private void inferRowTypeInfo(RedisCommand redisCommand) {
+    private void inferRowTypeInfo(RedisCommand redisCommand, RowTypeInfo inputRowTypeInfo) {
         Map<String, TypeInformation> typeMap = new HashMap<>();
         typeMap.put(VALUE, Types.STRING);
         if (configuration.get(RedisOptions.VALUE_DATA_STRUCTURE) != RedisValueDataStructure.row) {
@@ -202,9 +181,33 @@ public class RedisSourceFunctionBuilder<T> {
                 typeMap.put(fieldName, map.get(fieldName));
             }
         }
-        rowTypeInfo = new RowTypeInfo(
+
+        RowTypeInfo valueTypeInfo = new RowTypeInfo(
                 typeMap.values().toArray(new TypeInformation[0]),
                 typeMap.keySet().toArray(new String[0])
+        );
+        rowTypeInfo = mergeTypeInfo(inputRowTypeInfo, valueTypeInfo);
+    }
+
+    private RowTypeInfo mergeTypeInfo(RowTypeInfo rowTypeInfo,
+                                      RowTypeInfo valueTypeInfo) {
+        Map<String, TypeInformation<?>> rowFields = new HashMap<>();
+        for (int i = 0; i < rowTypeInfo.getFieldNames().length; i++) {
+            rowFields.put(rowTypeInfo.getFieldNames()[i], rowTypeInfo.getFieldTypes()[i]);
+        }
+
+        Map<String, TypeInformation<?>> valueFields = new HashMap<>();
+        for (int i = 0; i < valueTypeInfo.getFieldNames().length; i++) {
+            valueFields.put(valueTypeInfo.getFieldNames()[i], valueTypeInfo.getFieldTypes()[i]);
+        }
+
+        Map<String, TypeInformation<?>> allFields = new HashMap<>();
+        allFields.putAll(rowFields);
+        allFields.putAll(valueFields);
+
+        return new RowTypeInfo(
+                allFields.values().toArray(new TypeInformation[0]),
+                allFields.keySet().toArray(new String[0])
         );
     }
 }

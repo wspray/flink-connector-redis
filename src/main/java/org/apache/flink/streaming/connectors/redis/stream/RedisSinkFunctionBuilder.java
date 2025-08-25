@@ -76,7 +76,7 @@ public class RedisSinkFunctionBuilder<T> {
     }
 
     public RedisSinkFunctionBuilder<T> setValueName(String valueName) {
-        configuration.set(CUSTOM_VALUE_NAME, valueName);
+        configuration.set(RedisOptions.CUSTOM_VALUE_NAME, valueName);
         return this;
     }
 
