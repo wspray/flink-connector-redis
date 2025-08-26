@@ -33,6 +33,10 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Base64;
 
+import static java.lang.Boolean.FALSE;
+import static java.lang.Boolean.TRUE;
+import static java.lang.Boolean.parseBoolean;
+
 /**
  * redis serialize for stream API.
  */
@@ -64,7 +68,7 @@ public class RedisRowConverter {
         } else if (fieldType.equals(Types.STRING)) {
             return result -> result;
         } else if (fieldType.equals(Types.BOOLEAN)) {
-            return Boolean::valueOf;
+            return result -> parseBoolean(result) || "1".equals(result) ? TRUE : FALSE;
         } else if (fieldType.equals(Types.BYTE)) {
             return Byte::valueOf;
         } else if (fieldType.equals(Types.SHORT)) {
