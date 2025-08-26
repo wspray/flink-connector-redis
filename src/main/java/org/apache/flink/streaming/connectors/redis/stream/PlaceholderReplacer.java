@@ -1,48 +1,46 @@
 package org.apache.flink.streaming.connectors.redis.stream;
 
+import org.apache.commons.text.StringSubstitutor;
 import org.apache.flink.types.Row;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class PlaceholderReplacer {
 
     private static final Logger LOG = LoggerFactory.getLogger(PlaceholderReplacer.class);
 
-    private static final Pattern PATTERN = Pattern.compile("\\{([^}]+)}");
+    private static final String DEFAULT_VAR_START = "{";
+    private static final String DEFAULT_VAR_END = "}";
+    private static final char DEFAULT_ESCAPE = '$';
+    private static final String DEFAULT_VAR_DEFAULT = ":";
 
     public static String replaceByTag(Row row, String template) {
+        if (template == null || template.isEmpty() || row == null) {
+            return template;
+        }
+
         try {
-            if (template == null || template.isEmpty() || row == null) {
-                return template;
+            // 模板里没有出现“{...}”占位符 -> 把整串当字段名去取值
+            if (!(template.contains(DEFAULT_VAR_START) && template.contains(DEFAULT_VAR_END))) {
+                Object val = row.getField(template);
+                return val == null ? template : val.toString();
             }
 
-            // 没有{}占位符，则整体当做name从row获取
-            if (!PATTERN.matcher(template).find()) {
-                Object fieldValue = row.getField(template);
-                return fieldValue == null ? template : fieldValue.toString();
-            }
+            StringSubstitutor substitutor = new StringSubstitutor(
+                    key -> {
+                        Object v = row.getField(key);
+                        return v == null ? null : v.toString();
+                    },
+                    DEFAULT_VAR_START,
+                    DEFAULT_VAR_END,
+                    DEFAULT_ESCAPE,
+                    DEFAULT_VAR_DEFAULT);
 
-            Matcher matcher = PATTERN.matcher(template);
-            StringBuffer sb = new StringBuffer();
-            while (matcher.find()) {
-                try {
-                    String key = matcher.group(1);
-                    Object value = row.getField(key);
-                    // 如果 map 中没有对应 key，则保留原占位符
-                    matcher.appendReplacement(sb,
-                            Matcher.quoteReplacement(
-                                    value == null ? matcher.group() : String.valueOf(value)));
-                } catch (Exception e) {
-                    LOG.error("Redis replaceByTag appendReplacement exception: ", e);
-                }
-            }
-            matcher.appendTail(sb);
-            return sb.toString();
+            // 保留未匹配占位符：模板里出现未知变量时，保留原占位符并不直接抛异常
+            substitutor.setEnableUndefinedVariableException(false);
+            return substitutor.replace(template);
         } catch (Exception e) {
-            LOG.error("Redis replaceByTag exception: ", e);
+            LOG.error("PlaceholderReplacer replaceByTag exception: ", e);
             return template;
         }
     }
@@ -51,7 +49,7 @@ public class PlaceholderReplacer {
 //        Row row = Row.withNames();
 //        row.setField("name", "Alice");
 //        row.setField("id", "1001");
-//        System.out.println(replaceByTag(row, "hello {name}, your id is {id}."));
+//        System.out.println(replaceByTag(row, "hello ${name}, your id is {id2:123}."));
 //        // 输出: hello Alice, your id is 1001.
 //        System.out.println(replaceByTag(row, "name"));
 //    }

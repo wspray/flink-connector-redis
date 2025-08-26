@@ -110,7 +110,7 @@ public class DataLookUpBuilderTest extends TestRedisConfigBase {
                 .setResolvedSchema(map)
 //                .setMaxRetries(1)
                 .setRedisJoinConfig(joinConfig)
-                .setKeyName("student:{id2}")
+                .setKeyName("student:{id}")
                 .setQueryGet();
 
 

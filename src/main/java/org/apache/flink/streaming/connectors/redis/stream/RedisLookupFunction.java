@@ -105,25 +105,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         try {
             asyncInvokeRow(input, resultFuture);
         } catch (Exception e) {
-            Row outRow = Row.withNames();
-            outRow.setField(VALUE, null);
-            if (redisValueDataStructure != RedisValueDataStructure.row) {
-                outRow.setField(KEY, null);
-
-                if (redisCommand.name().contains("HGET")) {
-                    outRow.setField(FIELD, null);
-                } else if (redisCommand == ZSCORE || redisCommand == ZRANGEWITHSCORES) {
-                    outRow.setField(SCORE, null);
-                }
-            }
-
-            if (dataTypes != null && !dataTypes.isEmpty()) {
-                List<String> valueFieldNames = new ArrayList<>(dataTypes.keySet());
-                for (String fieldName : valueFieldNames) {
-                    outRow.setField(fieldName, null);
-                }
-            }
-            resultFuture.complete(Collections.singleton(mergeRow(input, outRow)));
+            resultFuture.complete(Collections.singleton(expandDefaultRow(input)));
         }
     }
 
@@ -281,39 +263,6 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         }
     }
 
-    @Override
-    public void open(org.apache.flink.configuration.Configuration parameters) throws Exception {
-        super.open(parameters);
-
-        Preconditions.checkArgument(
-                redisCommand.getJoinCommand() != RedisJoinCommand.NONE,
-                String.format("the command %s do not support join.", redisCommand.name()));
-
-        // permit hget all to cache without cache limit
-        /*if (redisCommand.getJoinCommand() == RedisJoinCommand.HGETALL) {
-            Preconditions.checkArgument(
-                    cacheMaxSize != -1 && cacheTtl != -1,
-                    "cache must be opened by cacheMaxSize and cacheTtl when you want to load all elements to cache.");
-        }*/
-
-        try {
-            this.redisCommandsContainer = RedisCommandsContainerBuilder.build(this.flinkConfigBase);
-            this.redisCommandsContainer.open();
-            LOG.info("success to create redis container.");
-        } catch (Exception e) {
-            LOG.error("Redis has not been properly initialized: ", e);
-            throw e;
-        }
-
-        this.cache =
-                cacheMaxSize == -1 || cacheTtl == -1
-                        ? null
-                        : CacheBuilder.newBuilder()
-                        .expireAfterWrite(cacheTtl, TimeUnit.SECONDS)
-                        .maximumSize(cacheMaxSize)
-                        .build();
-    }
-
     private String[] calcParamByCommand(Row row) {
         List<String> params = new ArrayList<>();
         String keyField = this.readableConfig.get(RedisOptions.CUSTOM_KEY_NAME);
@@ -356,6 +305,61 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
             }
         }
         return outRow;
+    }
+
+    private Row expandDefaultRow(Row input) {
+        Row outRow = Row.withNames();
+        outRow.setField(VALUE, null);
+        if (redisValueDataStructure != RedisValueDataStructure.row) {
+            outRow.setField(KEY, null);
+
+            if (redisCommand.name().contains("HGET")) {
+                outRow.setField(FIELD, null);
+            } else if (redisCommand == ZSCORE || redisCommand == ZRANGEWITHSCORES) {
+                outRow.setField(SCORE, null);
+            }
+        }
+
+        if (dataTypes != null && !dataTypes.isEmpty()) {
+            List<String> valueFieldNames = new ArrayList<>(dataTypes.keySet());
+            for (String fieldName : valueFieldNames) {
+                outRow.setField(fieldName, null);
+            }
+        }
+        return mergeRow(input, outRow);
+    }
+
+    @Override
+    public void open(org.apache.flink.configuration.Configuration parameters) throws Exception {
+        super.open(parameters);
+
+        Preconditions.checkArgument(
+                redisCommand.getJoinCommand() != RedisJoinCommand.NONE,
+                String.format("the command %s do not support join.", redisCommand.name()));
+
+        // permit hget all to cache without cache limit
+        /*if (redisCommand.getJoinCommand() == RedisJoinCommand.HGETALL) {
+            Preconditions.checkArgument(
+                    cacheMaxSize != -1 && cacheTtl != -1,
+                    "cache must be opened by cacheMaxSize and cacheTtl when you want to load all elements to cache.");
+        }*/
+
+        try {
+            this.redisCommandsContainer = RedisCommandsContainerBuilder.build(this.flinkConfigBase);
+            this.redisCommandsContainer.open();
+            LOG.info("success to create redis container.");
+        } catch (Exception e) {
+            LOG.error("Redis has not been properly initialized: ", e);
+            throw e;
+        }
+
+        this.cache =
+                cacheMaxSize == -1 || cacheTtl == -1
+                        ? null
+                        : CacheBuilder.newBuilder()
+                        .expireAfterWrite(cacheTtl, TimeUnit.SECONDS)
+                        .maximumSize(cacheMaxSize)
+                        .build();
     }
 
     @Override
