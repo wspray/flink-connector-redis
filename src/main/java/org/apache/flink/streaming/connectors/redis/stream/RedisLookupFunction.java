@@ -71,6 +71,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
     private final long cacheMaxSize;
     private final long cacheTtl;
     private final int maxRetryTimes;
+    private final boolean mergeByOverwrite;
     private final Map<String, TypeInformation> dataTypes;
     private final RedisValueDataStructure redisValueDataStructure;
     private Cache<String, Object> cache;
@@ -90,6 +91,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         this.cacheTtl = redisJoinConfig.getCacheTtl();
         this.cacheMaxSize = redisJoinConfig.getCacheMaxSize();
         this.maxRetryTimes = readableConfig.get(RedisOptions.MAX_RETRIES);
+        this.mergeByOverwrite = readableConfig.get(RedisOptions.MERGE_BY_OVERWRITE);
         this.redisValueDataStructure = readableConfig.get(RedisOptions.VALUE_DATA_STRUCTURE);
 
         RedisCommandBaseDescription redisCommandDescription = redisMapper.getCommandDescription();
@@ -300,9 +302,10 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
             outRow.setField(fieldName, left.getField(fieldName));
         }
         for (String fieldName : rightFieldNames) {
-            if (!leftFieldNames.contains(fieldName)) {
-                outRow.setField(fieldName, right.getField(fieldName));
+            if (!mergeByOverwrite && leftFieldNames.contains(fieldName)) {
+                continue;
             }
+            outRow.setField(fieldName, right.getField(fieldName));
         }
         return outRow;
     }

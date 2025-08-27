@@ -9,7 +9,7 @@ public class PlaceholderReplacer {
 
     private static final Logger LOG = LoggerFactory.getLogger(PlaceholderReplacer.class);
 
-    private static final String DEFAULT_VAR_START = "{";
+    private static final String DEFAULT_VAR_START = "\\{";
     private static final String DEFAULT_VAR_END = "}";
     private static final char DEFAULT_ESCAPE = '$';
     private static final String DEFAULT_VAR_DEFAULT = ":";
@@ -49,8 +49,8 @@ public class PlaceholderReplacer {
 //        Row row = Row.withNames();
 //        row.setField("name", "Alice");
 //        row.setField("id", "1001");
-//        System.out.println(replaceByTag(row, "hello ${name}, your id is {id2:123}."));
-//        // 输出: hello Alice, your id is 1001.
+//        System.out.println(replaceByTag(row, "hello \\{name} $\\{name}, your id is \\{id2:123}."));
+//        // 输出: hello Alice \{name}, your id is {id2:123}.
 //        System.out.println(replaceByTag(row, "name"));
 //    }
 }

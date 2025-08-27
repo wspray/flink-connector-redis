@@ -98,6 +98,11 @@ public class RedisLookupFunctionBuilder<T> {
         return this;
     }
 
+    public RedisLookupFunctionBuilder<T> setMergeByOverwrite(boolean mergeByOverwrite) {
+        configuration.set(RedisOptions.MERGE_BY_OVERWRITE, mergeByOverwrite);
+        return this;
+    }
+
     public RedisLookupFunctionBuilder<T> setQueryGet() {
         this.redisMapper = new RowRedisQueryMapper(RedisCommand.GET);
         return this;

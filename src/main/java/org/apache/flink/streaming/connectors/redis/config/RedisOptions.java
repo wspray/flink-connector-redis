@@ -217,6 +217,11 @@ public class RedisOptions {
                     .booleanType()
                     .defaultValue(false)
                     .withDescription("Optional turn on the audit log switch.");
+    public static final ConfigOption<Boolean> MERGE_BY_OVERWRITE =
+            ConfigOptions.key("merge.row.overwrite")
+                    .booleanType()
+                    .defaultValue(false)
+                    .withDescription("Optional turn on the merge row overwrite switch.");
 
 
 

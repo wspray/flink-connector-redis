@@ -100,12 +100,14 @@ public class RedisResultWrapper {
             row.setField(VALUE, null); // unify typeInfo
         }
 
-        dataTypes.forEach((key, type) ->
-                row.setField(
-                        key,
-                        !successDeserialize ?
-                                null : RedisRowConverter.dataTypeFromString(
-                                type, String.valueOf(jsonMap.get(key)))));
+        dataTypes.forEach((key, type) -> {
+            Object result = successDeserialize ? jsonMap.get(key) : null;
+            row.setField(
+                    key,
+                    result == null ?
+                            null : RedisRowConverter.dataTypeFromString(
+                            type, String.valueOf(result)));
+        });
         return row;
     }
 
