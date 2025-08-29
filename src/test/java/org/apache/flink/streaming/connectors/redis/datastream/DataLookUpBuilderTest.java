@@ -27,41 +27,39 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
-import org.apache.flink.streaming.connectors.redis.command.RedisCommand;
+import org.apache.flink.streaming.connectors.redis.config.FlinkClusterConfig;
 import org.apache.flink.streaming.connectors.redis.config.FlinkConfigBase;
-import org.apache.flink.streaming.connectors.redis.config.FlinkSingleConfig;
 import org.apache.flink.streaming.connectors.redis.config.RedisJoinConfig;
-import org.apache.flink.streaming.connectors.redis.config.RedisOptions;
-import org.apache.flink.streaming.connectors.redis.mapper.RowRedisQueryMapper;
 import org.apache.flink.streaming.connectors.redis.stream.RedisLookupFunction;
 import org.apache.flink.streaming.connectors.redis.stream.RedisLookupFunctionBuilder;
-import org.apache.flink.streaming.connectors.redis.table.base.TestRedisConfigBase;
 import org.apache.flink.types.Row;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
 import java.util.concurrent.TimeUnit;
 
+import static org.apache.flink.api.common.typeinfo.BasicArrayTypeInfo.DOUBLE_ARRAY_TYPE_INFO;
+import static org.apache.flink.api.common.typeinfo.BasicArrayTypeInfo.INT_ARRAY_TYPE_INFO;
+import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_CLUSTER;
 import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_MODE;
-import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_SINGLE;
 
 /**
  * Created by jeff.zou on 2021/2/26.
  */
-public class DataLookUpBuilderTest extends TestRedisConfigBase {
+public class DataLookUpBuilderTest /*extends TestRedisConfigBase */ {
 
     @Test
     public void testDateStreamInsert() throws Exception {
-        FlinkConfigBase conf =
-                new FlinkSingleConfig.Builder()
-                        .setHost(REDIS_HOST)
-                        .setPort(REDIS_PORT)
-                        .setPassword(REDIS_PASSWORD)
-                        .build();
+//        FlinkConfigBase conf =
+//                new FlinkSingleConfig.Builder()
+//                        .setHost(REDIS_HOST)
+//                        .setPort(REDIS_PORT)
+//                        .setPassword(REDIS_PASSWORD)
+//                        .build();
 
-//        FlinkConfigBase conf = new FlinkClusterConfig.Builder()
-//                .setNodesInfo("10.130.18.76:6381,10.130.18.76:6379,10.130.18.76:6383")
-//                .build();
+        FlinkConfigBase conf = new FlinkClusterConfig.Builder()
+                .setNodesInfo("10.130.18.76:6381,10.130.18.76:6379,10.130.18.76:6383")
+                .build();
 
 //        FlinkConfigBase conf = new FlinkSentinelConfig.Builder()
 //                .setSentinelsInfo("")
@@ -72,9 +70,9 @@ public class DataLookUpBuilderTest extends TestRedisConfigBase {
 
 //        System.out.println(singleRedisCommands.get("test*"));
         Configuration configuration = new Configuration();
-        configuration.setString(REDIS_MODE, REDIS_SINGLE);
+//        configuration.setString(REDIS_MODE, REDIS_SINGLE);
 //        configuration.setString(REDIS_MODE, REDIS_SENTINEL);
-//        configuration.setString(REDIS_MODE, REDIS_CLUSTER);
+        configuration.setString(REDIS_MODE, REDIS_CLUSTER);
 
 //        configuration.set(VALUE_DATA_STRUCTURE, RedisValueDataStructure.row1);
 
@@ -96,11 +94,12 @@ public class DataLookUpBuilderTest extends TestRedisConfigBase {
         map.put("name", Types.STRING);
         map.put("gender", Types.INT);
         map.put("hobbies", Types.STRING);
+        map.put("eyes", DOUBLE_ARRAY_TYPE_INFO);
         RedisJoinConfig.Builder joinConfigBuilder = new RedisJoinConfig.Builder();
-        joinConfigBuilder
-                .setCacheTTL(10)
-                .setCacheMaxSize(500)
-                .setLoadAll(true);
+//        joinConfigBuilder
+//                .setCacheTTL(10)
+//                .setCacheMaxSize(500)
+//                .setLoadAll(true);
         RedisJoinConfig joinConfig = joinConfigBuilder.build();
 //        RedisLookupFunction lookupFunction =
 //                new RedisLookupFunction(redisMapper, configuration, conf, map, joinConfig);
@@ -110,7 +109,7 @@ public class DataLookUpBuilderTest extends TestRedisConfigBase {
                 .setResolvedSchema(map)
 //                .setMaxRetries(1)
                 .setRedisJoinConfig(joinConfig)
-                .setKeyName("student:{id}")
+                .setKeyName("student:/{id}")
                 .setQueryGet();
 
 
@@ -120,6 +119,7 @@ public class DataLookUpBuilderTest extends TestRedisConfigBase {
         Row row1 = Row.withNames();
         row1.setField("id", "1");
         row1.setField("subject", "math");
+        row1.setField("scores", new Integer[]{1, 2, 3});
         Row row2 = Row.withNames();
         row2.setField("id", "2");
         row2.setField("subject", "english");
@@ -128,8 +128,8 @@ public class DataLookUpBuilderTest extends TestRedisConfigBase {
         row3.setField("subject", "science");
 
         TypeInformation<Row> rowTypeInformation = Types.ROW_NAMED(
-                new String[]{"id", "subject"},
-                Types.STRING, Types.STRING);
+                new String[]{"id", "subject", "scores"},
+                Types.STRING, Types.STRING, INT_ARRAY_TYPE_INFO);
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         DataStreamSource<Row> inputStream = env.fromData(rowTypeInformation, row1, row2, row3);
@@ -144,7 +144,7 @@ public class DataLookUpBuilderTest extends TestRedisConfigBase {
                 //保证顺序：异步返回的结果保证顺序，超时时间1秒，最大容量2，超出容量触发反压
                 .orderedWait(inputStream,
                         redisLookupFunction,
-                        1000L, TimeUnit.MILLISECONDS)
+                        -1, TimeUnit.MILLISECONDS)
                 .setParallelism(1);
 
         orderedResult.addSink(new PrintSinkFunction<>("@@@", false));
