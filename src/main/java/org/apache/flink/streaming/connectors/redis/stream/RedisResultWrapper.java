@@ -97,7 +97,7 @@ public class RedisResultWrapper {
         Map<String, Object> jsonMap = deserializeString(value);
         boolean successDeserialize = jsonMap != null && !jsonMap.isEmpty();
         if (successDeserialize) {
-            row.setField(VALUE, null); // unify typeInfo
+            row.setField(VALUE, value); // unify typeInfo
         }
 
         dataTypes.forEach((key, type) -> {
