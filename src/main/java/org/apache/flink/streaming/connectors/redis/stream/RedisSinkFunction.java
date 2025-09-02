@@ -37,6 +37,7 @@ import org.apache.flink.streaming.connectors.redis.container.RedisCommandsContai
 import org.apache.flink.streaming.connectors.redis.container.RedisCommandsContainerBuilder;
 import org.apache.flink.streaming.connectors.redis.mapper.RedisSinkRowMapper;
 import org.apache.flink.streaming.connectors.redis.stream.converter.RedisRowConverter;
+import org.apache.flink.streaming.connectors.redis.table.RedisDynamicTableFactory;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.CollectionUtil;
@@ -53,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.flink.streaming.connectors.redis.command.RedisInsertCommand.HSET;
 import static org.apache.flink.streaming.connectors.redis.command.RedisInsertCommand.ZADD;
@@ -175,7 +177,23 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
     private void startSink(String[] params, RowKind kind) throws Exception {
         for (int i = 0; i <= maxRetryTimes; i++) {
             try {
-                RedisFuture redisFuture = null;
+                // 设置了ttl并且开启了 仅ttl不存在时设置ttl时，需提前获取下原始ttl
+                AtomicReference<Long> originalTtl = new AtomicReference<>();
+                if (ttl != null && ttlKeyNotAbsent) {
+                    // set ttl when key not absent
+                    this.redisCommandsContainer
+                            .getTTL(params[0])
+                            .whenComplete(
+                                    (t, h) -> {
+                                        if (t > -1) {
+                                            originalTtl.set(t);
+                                        }
+                                    });
+                } else {
+                    originalTtl.set(null);
+                }
+
+                RedisFuture redisFuture;
                 if (kind == RowKind.DELETE) {
                     redisFuture = rowKindDelete(params);
                 } else {
@@ -189,7 +207,7 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
                 // sync process for instant job caused shut down server
                 Object result = redisFuture.get();
                 if (result != null) {
-                    setTtl(params[0]);
+                    setTtl(params[0], originalTtl.get());
                 }
 
                 break;
@@ -415,23 +433,16 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
      * set ttl for key.
      *
      * @param key
+     * @param remainTtl
      */
-    private void setTtl(String key) {
+    private void setTtl(String key, Long remainTtl) {
         if (redisCommand == RedisCommand.DEL) {
             return;
         }
 
         if (ttl != null) {
-            if (ttlKeyNotAbsent) {
-                // set ttl when key not absent
-                this.redisCommandsContainer
-                        .getTTL(key)
-                        .whenComplete(
-                                (t, h) -> {
-                                    if (t < 0) {
-                                        this.redisCommandsContainer.expire(key, ttl);
-                                    }
-                                });
+            if (ttlKeyNotAbsent && remainTtl != null) {
+                this.redisCommandsContainer.expire(key, remainTtl.intValue());
             } else {
                 // set ttl every sink
                 this.redisCommandsContainer.expire(key, ttl);
@@ -473,7 +484,7 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
                     RedisRowConverter.rowDataToString(
                             columnDataTypes.get(i), row, i));
             if (i != columnDataTypes.size() - 1) {
-                stringBuilder.append(org.apache.flink.streaming.connectors.redis.table.RedisDynamicTableFactory.CACHE_SEPERATOR);
+                stringBuilder.append(RedisDynamicTableFactory.CACHE_SEPERATOR);
             }
         }
         return stringBuilder.toString();
