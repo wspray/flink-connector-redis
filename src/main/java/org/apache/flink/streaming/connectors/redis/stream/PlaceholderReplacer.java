@@ -23,7 +23,7 @@ public class PlaceholderReplacer {
             // 模板里没有出现“{...}”占位符 -> 把整串当字段名去取值
             if (!(template.contains(DEFAULT_VAR_START) && template.contains(DEFAULT_VAR_END))) {
                 Object val = row.getField(template);
-                return val == null ? template : val.toString();
+                return val == null ? null : val.toString();
             }
 
             StringSubstitutor substitutor = new StringSubstitutor(
@@ -51,6 +51,6 @@ public class PlaceholderReplacer {
 //        row.setField("id", "1001");
 //        System.out.println(replaceByTag(row, "hello /{name} $/{name}, your id is /{id2:123}."));
 //        // 输出: hello Alice /{name}, your id is {id2:123}.
-//        System.out.println(replaceByTag(row, "name"));
+//        System.out.println(replaceByTag(row, "name1"));
 //    }
 }
