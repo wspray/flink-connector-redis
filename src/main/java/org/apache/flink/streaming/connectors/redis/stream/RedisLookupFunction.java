@@ -111,6 +111,11 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         }
     }
 
+    @Override
+    public void timeout(Row input, ResultFuture<Row> resultFuture) throws Exception {
+        resultFuture.complete(Collections.singleton(expandDefaultRow(input)));
+    }
+
     public void asyncInvokeRow(Row input, ResultFuture<Row> resultFuture) throws Exception {
         String[] queryParameter = calcParamByCommand(input);
 
