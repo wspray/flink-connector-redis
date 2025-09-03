@@ -39,7 +39,7 @@ import java.util.Map;
 /**
  * Created by jeff.zou on 2021/2/26.
  */
-public class DataSourceBuilderTest extends TestRedisConfigBase {
+public class DataSourceBuilderTest /*extends TestRedisConfigBase*/ {
 
     @Test
     public void testDateStreamInsert() throws Exception {
@@ -51,8 +51,8 @@ public class DataSourceBuilderTest extends TestRedisConfigBase {
 //                        .build();
 
         FlinkConfigBase conf = new FlinkClusterConfig.Builder()
-//                .setNodesInfo("10.130.18.76:6381,10.130.18.76:6379,10.130.18.76:6383")
-                .setNodesInfo("127.0.0.1:6379")
+                .setNodesInfo("10.130.18.76:6381,10.130.18.76:6379,10.130.18.76:6383")
+//                .setNodesInfo("127.0.0.1:6379")
                 .build();
 
 //        FlinkConfigBase conf = new FlinkSentinelConfig.Builder()
@@ -84,10 +84,10 @@ public class DataSourceBuilderTest extends TestRedisConfigBase {
 //                        .setKey("myzset")
 //                        .setValueOnly()
 //                        .setQueryZScore("item1")
-                .setKey("student:*")
-                .setResolvedSchema(map)
-                .setValueOnly(true)
-                .setQueryGet()
+                .setKey("test:hash*")
+//                .setResolvedSchema(map)
+//                .setValueOnly(true)
+                .setQueryHGetAll()
                 .checkAndInferType();
         RowTypeInfo rowTypeInfo = builder.getRowTypeInfo();
         RedisSourceFunction<Row> sourceFunction = builder.build();

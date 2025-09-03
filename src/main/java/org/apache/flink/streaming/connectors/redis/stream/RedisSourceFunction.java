@@ -159,6 +159,9 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                 Set<String> keys = Arrays.stream(key.split(",")).collect(Collectors.toSet());
                 List<KeyValue> results = this.redisCommandsContainer.mget(keys).get();
                 for (KeyValue keyValue : results) {
+                    if (keyValue.isEmpty()) {
+                        continue;
+                    }
                     Row row =
                             RedisResultWrapper.createRowDataForString(
                                     (String) keyValue.getKey(), (String) keyValue.getValue(), redisValueDataStructure, dataTypes);
