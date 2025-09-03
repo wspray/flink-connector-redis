@@ -26,6 +26,7 @@ import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.Z
 import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZSCORE;
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.FIELD;
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.KEY;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.MERGE_BY_OVERWRITE;
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCORE;
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.VALUE;
 import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_CLUSTER;
@@ -99,7 +100,7 @@ public class RedisLookupFunctionBuilder<T> {
     }
 
     public RedisLookupFunctionBuilder<T> setMergeByOverwrite(boolean mergeByOverwrite) {
-        configuration.set(RedisOptions.MERGE_BY_OVERWRITE, mergeByOverwrite);
+        configuration.set(MERGE_BY_OVERWRITE, mergeByOverwrite);
         return this;
     }
 
@@ -201,7 +202,11 @@ public class RedisLookupFunctionBuilder<T> {
 
         Map<String, TypeInformation<?>> valueFields = new HashMap<>();
         for (int i = 0; i < valueTypeInfo.getFieldNames().length; i++) {
-            valueFields.put(valueTypeInfo.getFieldNames()[i], valueTypeInfo.getFieldTypes()[i]);
+            String fieldName = valueTypeInfo.getFieldNames()[i];
+            if (!configuration.get(RedisOptions.MERGE_BY_OVERWRITE) && rowFields.containsKey(fieldName)) {
+                continue;
+            }
+            valueFields.put(fieldName, valueTypeInfo.getFieldTypes()[i]);
         }
 
         Map<String, TypeInformation<?>> allFields = new HashMap<>();
