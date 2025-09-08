@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZRANGEWITHSCORES;
 import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZSCORE;
@@ -54,6 +55,7 @@ import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.KE
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCORE;
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.VALUE;
 import static org.apache.flink.streaming.connectors.redis.stream.PlaceholderReplacer.replaceByTag;
+import static org.apache.flink.streaming.connectors.redis.stream.RedisResultArrayWrapper.isJsonArray;
 import static org.apache.flink.streaming.connectors.redis.table.RedisDynamicTableFactory.CACHE_SEPERATOR;
 
 /**
@@ -121,10 +123,10 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
 
         // when use cache.
         if (cache != null) {
-            Row row = null;
+            Object rowObj = null;
             switch (redisCommand.getJoinCommand()) {
                 case GET:
-                    row = (Row) cache.getIfPresent(queryParameter[0]);
+                    rowObj = cache.getIfPresent(queryParameter[0]);
                     break;
                 case HGET:
                     String key =
@@ -132,16 +134,28 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                                     .append(CACHE_SEPERATOR)
                                     .append(queryParameter[1])
                                     .toString();
-                    row = (Row) cache.getIfPresent(key);
+                    rowObj = cache.getIfPresent(key);
                     break;
                 case HGETALL:
                     Map<String, String> map =
                             (Map<String, String>) cache.getIfPresent(queryParameter[0]);
                     if (map != null) {
+                        String result = map.get(queryParameter[1]);
+                        if (isJsonArray(result)) {
+                            List<Row> rows = RedisResultArrayWrapper.createRowDataForHash(
+                                    queryParameter,
+                                    result,
+                                    redisValueDataStructure,
+                                    dataTypes);
+                            resultFuture.complete(rows.stream()
+                                    .map(r -> mergeRow(input, r))
+                                    .collect(Collectors.toList()));
+                            return;
+                        }
                         resultFuture.complete(Collections.singleton(
                                 mergeRow(input, RedisResultWrapper.createRowDataForHash(
                                         queryParameter,
-                                        map.get(queryParameter[1]),
+                                        result,
                                         redisValueDataStructure,
                                         dataTypes))));
                         return;
@@ -153,15 +167,23 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                                     .append(CACHE_SEPERATOR)
                                     .append(queryParameter[1])
                                     .toString();
-                    row = (Row) cache.getIfPresent(keyForZScore);
+                    rowObj = cache.getIfPresent(keyForZScore);
                     break;
                 }
                 default:
             }
 
             // when cache is not null.
-            if (row != null) {
-                resultFuture.complete(Collections.singleton(mergeRow(input, row)));
+            if (rowObj != null) {
+                if (rowObj instanceof Row) {
+                    resultFuture.complete(Collections.singleton(mergeRow(input, (Row) rowObj)));
+                }
+                if (rowObj instanceof List) {
+                    List<Row> rows = (List) rowObj;
+                    resultFuture.complete(rows.stream()
+                            .map(r -> mergeRow(input, r))
+                            .collect(Collectors.toList()));
+                }
                 return;
             }
         }
@@ -170,6 +192,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         for (int i = 0; i <= maxRetryTimes; i++) {
             try {
                 query(input, resultFuture, queryParameter);
+                Thread.sleep(3000L);
                 break;
             } catch (Exception e) {
                 LOG.error("query redis error, retry times:{}", i, e);
@@ -194,6 +217,22 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                         .get(queryParameter[0])
                         .thenAccept(
                                 result -> {
+                                    if (isJsonArray(String.valueOf(result))) {
+                                        List<Row> rows =
+                                                RedisResultArrayWrapper.createRowDataForString(
+                                                        queryParameter,
+                                                        result,
+                                                        redisValueDataStructure,
+                                                        dataTypes);
+
+                                        resultFuture.complete(rows.stream()
+                                                .map(r -> mergeRow(input, r))
+                                                .collect(Collectors.toList()));
+                                        if (cache != null && result != null) {
+                                            cache.put(queryParameter[0], rows);
+                                        }
+                                        return;
+                                    }
                                     Row row =
                                             RedisResultWrapper.createRowDataForString(
                                                     queryParameter,
@@ -213,6 +252,26 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                         .hget(queryParameter[0], queryParameter[1])
                         .thenAccept(
                                 result -> {
+                                    if (isJsonArray(String.valueOf(result))) {
+                                        List<Row> rows =
+                                                RedisResultArrayWrapper.createRowDataForHash(
+                                                        queryParameter,
+                                                        result,
+                                                        redisValueDataStructure,
+                                                        dataTypes);
+                                        resultFuture.complete(rows.stream()
+                                                .map(r -> mergeRow(input, r))
+                                                .collect(Collectors.toList()));
+                                        if (cache != null && result != null) {
+                                            String keyForHash =
+                                                    new StringBuilder(queryParameter[0])
+                                                            .append(CACHE_SEPERATOR)
+                                                            .append(queryParameter[1])
+                                                            .toString();
+                                            cache.put(keyForHash, rows);
+                                        }
+                                        return;
+                                    }
                                     Row row =
                                             RedisResultWrapper.createRowDataForHash(
                                                     queryParameter,
@@ -238,9 +297,21 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                         .thenAccept(
                                 map -> {
                                     cache.put(queryParameter[0], map);
+                                    String result = map.get(queryParameter[1]);
+                                    if (isJsonArray(result)) {
+                                        List<Row> rows = RedisResultArrayWrapper.createRowDataForHash(
+                                                queryParameter,
+                                                result,
+                                                redisValueDataStructure,
+                                                dataTypes);
+                                        resultFuture.complete(rows.stream()
+                                                .map(r -> mergeRow(input, r))
+                                                .collect(Collectors.toList()));
+                                        return;
+                                    }
                                     Row row = RedisResultWrapper.createRowDataForHash(
                                             queryParameter,
-                                            map.get(queryParameter[1]),
+                                            result,
                                             redisValueDataStructure,
                                             dataTypes);
                                     resultFuture.complete(Collections.singleton(mergeRow(input, row)));

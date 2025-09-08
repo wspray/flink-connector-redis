@@ -84,10 +84,11 @@ public class DataSourceBuilderTest /*extends TestRedisConfigBase*/ {
 //                        .setKey("myzset")
 //                        .setValueOnly()
 //                        .setQueryZScore("item1")
-                .setKey("test:hash*")
-//                .setResolvedSchema(map)
+                .setKey("test:11*")
+                .setResolvedSchema(map)
 //                .setValueOnly(true)
-                .setQueryHGetAll()
+                .setQueryGet()
+//                .setQueryHGetAll()
                 .checkAndInferType();
         RowTypeInfo rowTypeInfo = builder.getRowTypeInfo();
         RedisSourceFunction<Row> sourceFunction = builder.build();

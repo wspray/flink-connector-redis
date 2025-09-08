@@ -96,10 +96,9 @@ public class DataLookUpBuilderTest /*extends TestRedisConfigBase */ {
         map.put("hobbies", Types.STRING);
         map.put("eyes", DOUBLE_ARRAY_TYPE_INFO);
         RedisJoinConfig.Builder joinConfigBuilder = new RedisJoinConfig.Builder();
-//        joinConfigBuilder
-//                .setCacheTTL(10)
-//                .setCacheMaxSize(500)
-//                .setLoadAll(true);
+        joinConfigBuilder
+                .setCacheTTL(1000)
+                .setCacheMaxSize(500);
         RedisJoinConfig joinConfig = joinConfigBuilder.build();
 //        RedisLookupFunction lookupFunction =
 //                new RedisLookupFunction(redisMapper, configuration, conf, map, joinConfig);
@@ -124,15 +123,19 @@ public class DataLookUpBuilderTest /*extends TestRedisConfigBase */ {
         row2.setField("id", "2");
         row2.setField("subject", "english");
         Row row3 = Row.withNames();
-        row3.setField("id", "1");
-        row3.setField("subject", "science");
+        row3.setField("id", "3");
+        row3.setField("subject", "science31");
+        Row row4 = Row.withNames();
+        row4.setField("id", "3");
+        row4.setField("subject", "science32");
+
 
         TypeInformation<Row> rowTypeInformation = Types.ROW_NAMED(
                 new String[]{"id", "subject", "scores"},
                 Types.STRING, Types.STRING, INT_ARRAY_TYPE_INFO);
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        DataStreamSource<Row> inputStream = env.fromData(rowTypeInformation, row1, row2, row3);
+        DataStreamSource<Row> inputStream = env.fromData(rowTypeInformation, row3, row1, row2,  row4);
 
         RowTypeInfo inputRowTypeInfo = (RowTypeInfo) inputStream.getType();
         builder.checkAndInferType(inputRowTypeInfo);
