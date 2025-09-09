@@ -61,6 +61,11 @@ public class RedisSourceFunctionBuilder<T> {
         return this;
     }
 
+    public RedisSourceFunctionBuilder<T> setValueType(String valueType) {
+        configuration.set(RedisOptions.VALUE_TYPE, valueType);
+        return this;
+    }
+
     public RedisSourceFunctionBuilder<T> setConfiguration(Configuration configuration) {
         this.configuration = configuration;
         return this;

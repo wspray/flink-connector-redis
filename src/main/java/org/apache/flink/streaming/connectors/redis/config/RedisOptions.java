@@ -223,7 +223,11 @@ public class RedisOptions {
                     .defaultValue(false)
                     .withDescription("Optional turn on the merge row overwrite switch.");
 
-
+    public static final ConfigOption<String> VALUE_TYPE =
+            ConfigOptions.key("value.type")
+                    .stringType()
+                    .defaultValue("text")
+                    .withDescription("Optional set value.type of text or json");
 
     public static final ConfigOption<Boolean> ROW_BY_NAMES =
             ConfigOptions.key("custom.row.byNames")

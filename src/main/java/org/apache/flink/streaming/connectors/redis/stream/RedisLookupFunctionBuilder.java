@@ -62,6 +62,11 @@ public class RedisLookupFunctionBuilder<T> {
         return this;
     }
 
+    public RedisLookupFunctionBuilder<T> setValueType(String valueType) {
+        configuration.set(RedisOptions.VALUE_TYPE, valueType);
+        return this;
+    }
+
     public RedisLookupFunctionBuilder<T> setRedisJoinConfig(RedisJoinConfig joinConfig) {
         this.joinConfig = joinConfig;
         return this;

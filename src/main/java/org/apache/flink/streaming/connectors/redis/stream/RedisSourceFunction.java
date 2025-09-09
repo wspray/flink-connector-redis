@@ -63,7 +63,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
     private RedisCommand redisCommand;
 
     private final RedisValueDataStructure redisValueDataStructure;
-
+    private final boolean valueTypeJson;
     private final Map<String, TypeInformation> dataTypes;
 
     private String[] queryParameter;
@@ -77,6 +77,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
         this.flinkConfigBase = flinkConfigBase;
         this.maxRetryTimes = readableConfig.get(RedisOptions.MAX_RETRIES);
         this.redisValueDataStructure = readableConfig.get(RedisOptions.VALUE_DATA_STRUCTURE);
+        this.valueTypeJson = readableConfig.get(RedisOptions.VALUE_TYPE).equalsIgnoreCase("json");
 
         RedisCommandBaseDescription redisCommandDescription = redisMapper.getCommandDescription();
         Preconditions.checkNotNull(
@@ -150,7 +151,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
         switch (redisCommand.getSelectCommand()) {
             case GET: {
                 String result = this.redisCommandsContainer.get(key).get();
-                if (isJsonArray(result)) {
+                if (valueTypeJson && isJsonArray(result)) {
                     List<Row> rows =
                             RedisResultArrayWrapper.createRowDataForString(
                                     queryParameter, result, redisValueDataStructure, dataTypes);
@@ -170,7 +171,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                     if (keyValue.isEmpty()) {
                         continue;
                     }
-                    if (isJsonArray((String) keyValue.getValue())) {
+                    if (valueTypeJson && isJsonArray((String) keyValue.getValue())) {
                         List<Row> rows =
                                 RedisResultArrayWrapper.createRowDataForString(
                                         (String) keyValue.getKey(), (String) keyValue.getValue(), redisValueDataStructure, dataTypes);
@@ -189,7 +190,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                         this.redisCommandsContainer
                                 .hget(key, queryParameter[1])
                                 .get();
-                if (isJsonArray(result)) {
+                if (valueTypeJson && isJsonArray(result)) {
                     List<Row> rows =
                             RedisResultArrayWrapper.createRowDataForHash(
                                     queryParameter, result, redisValueDataStructure, dataTypes);
@@ -209,7 +210,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                                 .get();
                 List<Row> rows =
                         RedisResultArrayWrapper.createRowDataForHashAll(
-                                queryParameter, result, redisValueDataStructure, dataTypes);
+                                queryParameter, valueTypeJson, result, redisValueDataStructure, dataTypes);
                 for (Row row : rows) {
                     ctx.collect(row);
                 }
@@ -225,7 +226,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                                 .get();
                 list.forEach(
                         result -> {
-                            if (isJsonArray(String.valueOf(result))) {
+                            if (valueTypeJson && isJsonArray(String.valueOf(result))) {
                                 List<Row> rows =
                                         RedisResultArrayWrapper.createRowDataForString(
                                                 queryParameter,
@@ -256,7 +257,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
 
                 list.forEach(
                         result -> {
-                            if (isJsonArray(String.valueOf(result))) {
+                            if (valueTypeJson && isJsonArray(String.valueOf(result))) {
                                 List<Row> rows =
                                         RedisResultArrayWrapper.createRowDataForString(
                                                 queryParameter,
@@ -285,7 +286,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
 
                 set.forEach(
                         result -> {
-                            if (isJsonArray(String.valueOf(result))) {
+                            if (valueTypeJson && isJsonArray(String.valueOf(result))) {
                                 List<Row> rows =
                                         RedisResultArrayWrapper.createRowDataForString(
                                                 queryParameter,
@@ -325,7 +326,7 @@ public class RedisSourceFunction<T> extends RichSourceFunction<T> {
                                 .get();
                 list.forEach(
                         result -> {
-                            if (isJsonArray(String.valueOf(result))) {
+                            if (valueTypeJson && isJsonArray(String.valueOf(result))) {
                                 List<Row> rows =
                                         RedisResultArrayWrapper.createRowDataForSortedSet(
                                                 queryParameter,

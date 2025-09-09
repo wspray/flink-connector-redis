@@ -141,6 +141,7 @@ public class RedisResultArrayWrapper {
 
     public static List<Row> createRowDataForHashAll(
             Object[] keys,
+            boolean valueTypeJson,
             Map<String, String> map,
             RedisValueDataStructure redisValueDataStructure,
             Map<String, TypeInformation> dataTypes) {
@@ -148,18 +149,7 @@ public class RedisResultArrayWrapper {
 
         if (redisValueDataStructure == RedisValueDataStructure.column) {
             map.forEach((field, value) -> {
-                if (!isJsonArray(value)) {
-                    Row row = RedisResultWrapper.createRowDataForRow(value, dataTypes);
-                    row.setField(
-                            KEY,
-                            RedisRowConverter.dataTypeFromString(
-                                    Types.STRING, String.valueOf(keys[0])));
-                    row.setField(
-                            FIELD,
-                            RedisRowConverter.dataTypeFromString(
-                                    Types.STRING, field));
-                    list.add(row);
-                } else {
+                if (valueTypeJson && isJsonArray(value)) {
                     List<Row> rows = createRowDataForRow(value, dataTypes);
                     for (Row row : rows) {
                         row.setField(
@@ -172,6 +162,17 @@ public class RedisResultArrayWrapper {
                                         Types.STRING, field));
                     }
                     list.addAll(rows);
+                } else {
+                    Row row = RedisResultWrapper.createRowDataForRow(value, dataTypes);
+                    row.setField(
+                            KEY,
+                            RedisRowConverter.dataTypeFromString(
+                                    Types.STRING, String.valueOf(keys[0])));
+                    row.setField(
+                            FIELD,
+                            RedisRowConverter.dataTypeFromString(
+                                    Types.STRING, field));
+                    list.add(row);
                 }
             });
             return list;

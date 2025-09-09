@@ -74,6 +74,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
     private final long cacheTtl;
     private final int maxRetryTimes;
     private final boolean mergeByOverwrite;
+    private final boolean valueTypeJson;
     private final Map<String, TypeInformation> dataTypes;
     private final RedisValueDataStructure redisValueDataStructure;
     private Cache<String, Object> cache;
@@ -95,6 +96,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         this.maxRetryTimes = readableConfig.get(RedisOptions.MAX_RETRIES);
         this.mergeByOverwrite = readableConfig.get(RedisOptions.MERGE_BY_OVERWRITE);
         this.redisValueDataStructure = readableConfig.get(RedisOptions.VALUE_DATA_STRUCTURE);
+        this.valueTypeJson = readableConfig.get(RedisOptions.VALUE_TYPE).equalsIgnoreCase("json");
 
         RedisCommandBaseDescription redisCommandDescription = redisMapper.getCommandDescription();
         Preconditions.checkNotNull(
@@ -141,7 +143,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                             (Map<String, String>) cache.getIfPresent(queryParameter[0]);
                     if (map != null) {
                         String result = map.get(queryParameter[1]);
-                        if (isJsonArray(result)) {
+                        if (valueTypeJson && isJsonArray(result)) {
                             List<Row> rows = RedisResultArrayWrapper.createRowDataForHash(
                                     queryParameter,
                                     result,
@@ -217,7 +219,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                         .get(queryParameter[0])
                         .thenAccept(
                                 result -> {
-                                    if (isJsonArray(String.valueOf(result))) {
+                                    if (valueTypeJson && isJsonArray(String.valueOf(result))) {
                                         List<Row> rows =
                                                 RedisResultArrayWrapper.createRowDataForString(
                                                         queryParameter,
@@ -252,7 +254,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                         .hget(queryParameter[0], queryParameter[1])
                         .thenAccept(
                                 result -> {
-                                    if (isJsonArray(String.valueOf(result))) {
+                                    if (valueTypeJson && isJsonArray(String.valueOf(result))) {
                                         List<Row> rows =
                                                 RedisResultArrayWrapper.createRowDataForHash(
                                                         queryParameter,
@@ -298,7 +300,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                                 map -> {
                                     cache.put(queryParameter[0], map);
                                     String result = map.get(queryParameter[1]);
-                                    if (isJsonArray(result)) {
+                                    if (valueTypeJson && isJsonArray(result)) {
                                         List<Row> rows = RedisResultArrayWrapper.createRowDataForHash(
                                                 queryParameter,
                                                 result,
