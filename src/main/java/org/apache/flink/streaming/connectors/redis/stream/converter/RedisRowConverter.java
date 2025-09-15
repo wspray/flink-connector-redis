@@ -24,6 +24,8 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.types.Row;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -46,10 +48,17 @@ import static java.lang.Boolean.parseBoolean;
  */
 public class RedisRowConverter {
 
+    private static final Logger LOG = LoggerFactory.getLogger(RedisRowConverter.class);
+
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     public static Object dataTypeFromString(TypeInformation<?> fieldType, String result) {
-        return createDeserializer(fieldType).deserialize(result);
+        try {
+            return createDeserializer(fieldType).deserialize(result);
+        } catch (Exception e) {
+            LOG.error("deserialize result exception:{}", e.getMessage());
+        }
+        return null;
     }
 
     public static String rowDataToString(TypeInformation<?> fieldType, Row row, Integer index) {
