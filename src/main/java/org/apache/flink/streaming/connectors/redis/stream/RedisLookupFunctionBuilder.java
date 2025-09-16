@@ -77,6 +77,11 @@ public class RedisLookupFunctionBuilder<T> {
         return this;
     }
 
+    public RedisLookupFunctionBuilder<T> setPassword(String password) {
+        configuration.set(RedisOptions.PASSWORD, password);
+        return this;
+    }
+
     public RedisLookupFunctionBuilder<T> setConnectionTimeout(int timeout) {
         configuration.set(RedisOptions.TIMEOUT, timeout);
         return this;

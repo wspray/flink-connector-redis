@@ -60,6 +60,11 @@ public class RedisSinkFunctionBuilder<T> {
         return this;
     }
 
+    public RedisSinkFunctionBuilder<T> setPassword(String password) {
+        configuration.set(RedisOptions.PASSWORD, password);
+        return this;
+    }
+
     public RedisSinkFunctionBuilder<T> setConnectionTimeout(int timeout) {
         configuration.set(RedisOptions.TIMEOUT, timeout);
         return this;

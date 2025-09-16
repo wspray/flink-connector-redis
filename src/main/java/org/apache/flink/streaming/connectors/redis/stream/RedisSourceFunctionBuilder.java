@@ -71,6 +71,11 @@ public class RedisSourceFunctionBuilder<T> {
         return this;
     }
 
+    public RedisSourceFunctionBuilder<T> setPassword(String password) {
+        configuration.set(RedisOptions.PASSWORD, password);
+        return this;
+    }
+
     public RedisSourceFunctionBuilder<T> setConnectionTimeout(int timeout) {
         configuration.set(RedisOptions.TIMEOUT, timeout);
         return this;
