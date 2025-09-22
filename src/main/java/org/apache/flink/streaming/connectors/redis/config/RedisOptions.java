@@ -21,6 +21,9 @@ package org.apache.flink.streaming.connectors.redis.config;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Created by jeff.zou on 2020/9/10.
  */
@@ -217,11 +220,11 @@ public class RedisOptions {
                     .booleanType()
                     .defaultValue(false)
                     .withDescription("Optional turn on the audit log switch.");
-    public static final ConfigOption<Boolean> MERGE_BY_OVERWRITE =
+    public static final ConfigOption<Map<String, String>> MERGE_BY_OVERWRITE =
             ConfigOptions.key("merge.row.overwrite")
-                    .booleanType()
-                    .defaultValue(false)
-                    .withDescription("Optional turn on the merge row overwrite switch.");
+                    .mapType()
+                    .defaultValue(new HashMap<>())
+                    .withDescription("KV whether K field merge row overwrite if V is true.");
 
     public static final ConfigOption<String> VALUE_TYPE =
             ConfigOptions.key("value.type")

@@ -40,20 +40,14 @@ import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.apache.commons.lang3.BooleanUtils.TRUE;
 import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZRANGEWITHSCORES;
 import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZSCORE;
-import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.FIELD;
-import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.KEY;
-import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCORE;
-import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.VALUE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.*;
 import static org.apache.flink.streaming.connectors.redis.stream.PlaceholderReplacer.replaceByTag;
 import static org.apache.flink.streaming.connectors.redis.stream.RedisResultArrayWrapper.isJsonArray;
 import static org.apache.flink.streaming.connectors.redis.table.RedisDynamicTableFactory.CACHE_SEPERATOR;
@@ -73,7 +67,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
     private final long cacheMaxSize;
     private final long cacheTtl;
     private final int maxRetryTimes;
-    private final boolean mergeByOverwrite;
+    private final Map<String, String> valueOverwriteMap;
     private final boolean valueTypeJson;
     private final Map<String, TypeInformation> dataTypes;
     private final RedisValueDataStructure redisValueDataStructure;
@@ -94,7 +88,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         this.cacheTtl = redisJoinConfig.getCacheTtl();
         this.cacheMaxSize = redisJoinConfig.getCacheMaxSize();
         this.maxRetryTimes = readableConfig.get(RedisOptions.MAX_RETRIES);
-        this.mergeByOverwrite = readableConfig.get(RedisOptions.MERGE_BY_OVERWRITE);
+        this.valueOverwriteMap = readableConfig.get(RedisOptions.MERGE_BY_OVERWRITE);
         this.redisValueDataStructure = readableConfig.get(RedisOptions.VALUE_DATA_STRUCTURE);
         this.valueTypeJson = readableConfig.get(RedisOptions.VALUE_TYPE).equalsIgnoreCase("json");
 
@@ -380,7 +374,8 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
             outRow.setField(fieldName, left.getField(fieldName));
         }
         for (String fieldName : rightFieldNames) {
-            if (!mergeByOverwrite && leftFieldNames.contains(fieldName)) {
+            String overwrite = valueOverwriteMap.get(fieldName);
+            if (!Objects.equals(overwrite.toLowerCase(), TRUE) && leftFieldNames.contains(fieldName)) {
                 continue;
             }
             outRow.setField(fieldName, right.getField(fieldName));
