@@ -20,10 +20,9 @@ public class PlaceholderReplacer {
         }
 
         try {
-            // 模板里没有出现“{...}”占位符 -> 把整串当字段名去取值
+            // 模板里没有出现“{...}”占位符 -> 把整串当固定值
             if (!(template.contains(DEFAULT_VAR_START) && template.contains(DEFAULT_VAR_END))) {
-                Object val = row.getField(template);
-                return val == null ? null : val.toString();
+                return template;
             }
 
             StringSubstitutor substitutor = new StringSubstitutor(

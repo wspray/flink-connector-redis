@@ -40,14 +40,22 @@ import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.apache.commons.lang3.BooleanUtils.TRUE;
 import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZRANGEWITHSCORES;
 import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZSCORE;
-import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.*;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.FIELD;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.KEY;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCORE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.VALUE;
 import static org.apache.flink.streaming.connectors.redis.stream.PlaceholderReplacer.replaceByTag;
 import static org.apache.flink.streaming.connectors.redis.stream.RedisResultArrayWrapper.isJsonArray;
 import static org.apache.flink.streaming.connectors.redis.table.RedisDynamicTableFactory.CACHE_SEPERATOR;
@@ -375,7 +383,9 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         }
         for (String fieldName : rightFieldNames) {
             String overwrite = valueOverwriteMap.get(fieldName);
-            if (!Objects.equals(overwrite.toLowerCase(), TRUE) && leftFieldNames.contains(fieldName)) {
+            if (overwrite != null
+                    && !Objects.equals(overwrite.toLowerCase(), TRUE)
+                    && leftFieldNames.contains(fieldName)) {
                 continue;
             }
             outRow.setField(fieldName, right.getField(fieldName));

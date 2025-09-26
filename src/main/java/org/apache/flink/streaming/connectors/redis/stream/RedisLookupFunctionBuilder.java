@@ -6,18 +6,35 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.connectors.redis.command.RedisCommand;
-import org.apache.flink.streaming.connectors.redis.config.*;
+import org.apache.flink.streaming.connectors.redis.config.FlinkClusterConfig;
+import org.apache.flink.streaming.connectors.redis.config.FlinkConfigBase;
+import org.apache.flink.streaming.connectors.redis.config.FlinkSentinelConfig;
+import org.apache.flink.streaming.connectors.redis.config.FlinkSingleConfig;
+import org.apache.flink.streaming.connectors.redis.config.RedisJoinConfig;
+import org.apache.flink.streaming.connectors.redis.config.RedisOptions;
+import org.apache.flink.streaming.connectors.redis.config.RedisValueDataStructure;
 import org.apache.flink.streaming.connectors.redis.mapper.RowRedisQueryMapper;
 import org.apache.flink.types.Row;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static org.apache.commons.lang3.BooleanUtils.TRUE;
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZRANGEWITHSCORES;
 import static org.apache.flink.streaming.connectors.redis.command.RedisCommand.ZSCORE;
-import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.*;
-import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.*;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.FIELD;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.KEY;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.MERGE_BY_OVERWRITE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCORE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.VALUE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_CLUSTER;
+import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_MODE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_SENTINEL;
+import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.REDIS_SINGLE;
 
 public class RedisLookupFunctionBuilder<T> {
 
@@ -200,7 +217,9 @@ public class RedisLookupFunctionBuilder<T> {
         for (int i = 0; i < valueTypeInfo.getFieldNames().length; i++) {
             String fieldName = valueTypeInfo.getFieldNames()[i];
             String overwrite = valueOverwriteMap.get(fieldName);
-            if (!Objects.equals(overwrite.toLowerCase(), TRUE) && rowFields.containsKey(fieldName)) {
+            if (overwrite != null
+                    && !Objects.equals(overwrite.toLowerCase(), TRUE)
+                    && rowFields.containsKey(fieldName)) {
                 continue;
             }
             valueFields.put(fieldName, valueTypeInfo.getFieldTypes()[i]);
