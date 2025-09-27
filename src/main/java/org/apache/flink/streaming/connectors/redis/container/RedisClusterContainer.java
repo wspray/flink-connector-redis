@@ -455,6 +455,21 @@ public class RedisClusterContainer implements RedisCommandsContainer, Closeable 
     }
 
     @Override
+    public RedisFuture<String> type(String key) {
+        try {
+            return clusterAsyncCommands.type(key);
+        } catch (Exception e) {
+            if (LOG.isErrorEnabled()) {
+                LOG.error(
+                        "Cannot send Redis message with command get to key {} error message {}",
+                        key,
+                        e.getMessage());
+            }
+            throw e;
+        }
+    }
+
+    @Override
     public RedisFuture<String> get(String key) {
         try {
             return clusterAsyncCommands.get(key);

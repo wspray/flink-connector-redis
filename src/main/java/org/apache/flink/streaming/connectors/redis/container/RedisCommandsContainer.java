@@ -226,6 +226,14 @@ public interface RedisCommandsContainer extends Serializable {
     RedisFuture<Map<String, String>> hgetAll(String key);
 
     /**
+     * get type by key.
+     *
+     * @param key
+     * @return
+     */
+    RedisFuture<String> type(String key);
+
+    /**
      * get value by key.
      *
      * @param key
