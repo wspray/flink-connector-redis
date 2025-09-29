@@ -348,17 +348,17 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
     private String[] calcParamByCommand(Row row) {
         List<String> params = new ArrayList<>();
         String keyField = this.readableConfig.get(RedisOptions.CUSTOM_KEY_NAME);
-        String realKeyField = replaceByTag(row, keyField);
+        String realKeyField = replaceByTag(row, keyField, KEY);
 
         params.add(realKeyField);
 
         if (redisCommand.getJoinCommand() == RedisJoinCommand.HGET) {
             String fieldField = this.readableConfig.get(RedisOptions.CUSTOM_FIELD_NAME);
-            String realValueField = replaceByTag(row, fieldField);
+            String realValueField = replaceByTag(row, fieldField, FIELD);
             params.add(realValueField);
         } else if (redisCommand.getJoinCommand() == RedisJoinCommand.ZSCORE) {
             String valueField = this.readableConfig.get(RedisOptions.CUSTOM_VALUE_NAME);
-            String realValueField = replaceByTag(row, valueField);
+            String realValueField = replaceByTag(row, valueField, VALUE);
             params.add(realValueField);
         }
         return params.toArray(new String[0]);

@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.connectors.redis.stream;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.apache.flink.types.Row;
 import org.slf4j.Logger;
@@ -14,15 +15,20 @@ public class PlaceholderReplacer {
     private static final char DEFAULT_ESCAPE = '$';
     private static final String DEFAULT_VAR_DEFAULT = ":";
 
-    public static String replaceByTag(Row row, String template) {
+    public static String replaceByTag(Row row, String template, String defaultTemplate) {
         if (template == null || template.isEmpty() || row == null) {
             return template;
         }
 
         try {
-            // 模板里没有出现“{...}”占位符 -> 把整串当固定值
+            // 模板里没有出现“{...}”占位符 -> 特定默认关键字从row获取defaultTemplate对于的值，其他情况把整串当固定值
             if (!(template.contains(DEFAULT_VAR_START) && template.contains(DEFAULT_VAR_END))) {
-                return template;
+                if (StringUtils.equals(template, defaultTemplate)) {
+                    Object val = row.getField(template);
+                    return val == null ? null : val.toString();
+                } else {
+                    return template;
+                }
             }
 
             StringSubstitutor substitutor = new StringSubstitutor(

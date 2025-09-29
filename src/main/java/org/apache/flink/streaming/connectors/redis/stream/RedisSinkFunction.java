@@ -58,6 +58,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.flink.streaming.connectors.redis.command.RedisInsertCommand.HSET;
 import static org.apache.flink.streaming.connectors.redis.command.RedisInsertCommand.ZADD;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.END;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.FIELD;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.KEY;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCORE;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.START;
+import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.VALUE;
 import static org.apache.flink.streaming.connectors.redis.stream.PlaceholderReplacer.replaceByTag;
 
 /**
@@ -534,7 +540,7 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
     private String[] calcParamByCommand(Row row) {
         List<String> params = new ArrayList<>();
         String keyField = this.readableConfig.get(RedisOptions.CUSTOM_KEY_NAME);
-        String realKeyField = replaceByTag(row, keyField);
+        String realKeyField = replaceByTag(row, keyField, KEY);
 
         params.add(realKeyField);
 
@@ -544,20 +550,20 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
 
         if (redisCommand.getInsertCommand() == ZADD) {
             String scoreField = this.readableConfig.get(RedisOptions.CUSTOM_SCORE_NAME);
-            String realScoreField = replaceByTag(row, scoreField);
+            String realScoreField = replaceByTag(row, scoreField, SCORE);
             params.add(realScoreField);
 
             String valueField = this.readableConfig.get(RedisOptions.CUSTOM_VALUE_NAME);
-            String realValueField = replaceByTag(row, valueField);
+            String realValueField = replaceByTag(row, valueField, VALUE);
             params.add(realValueField);
 
             if (zremrangeby != null) {
                 String startField = this.readableConfig.get(RedisOptions.CUSTOM_START);
-                String realStartField = replaceByTag(row, startField);
+                String realStartField = replaceByTag(row, startField, START);
                 params.add(realStartField);
 
                 String endField = this.readableConfig.get(RedisOptions.CUSTOM_END);
-                String realEndField = replaceByTag(row, endField);
+                String realEndField = replaceByTag(row, endField, END);
                 params.add(realEndField);
             }
             return params.toArray(new String[0]);
@@ -565,24 +571,24 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
                 || redisCommand.getInsertCommand() == RedisInsertCommand.HINCRBY
                 || redisCommand.getInsertCommand() == RedisInsertCommand.HINCRBYFLOAT) {
             String fieldField = this.readableConfig.get(RedisOptions.CUSTOM_FIELD_NAME);
-            String realFieldField = replaceByTag(row, fieldField);
+            String realFieldField = replaceByTag(row, fieldField, FIELD);
             params.add(realFieldField);
 
             String valueField = this.readableConfig.get(RedisOptions.CUSTOM_VALUE_NAME);
-            String realValueField = replaceByTag(row, valueField);
+            String realValueField = replaceByTag(row, valueField, VALUE);
             params.add(realValueField);
             return params.toArray(new String[0]);
 
         } else if (redisCommand.getInsertCommand() == RedisInsertCommand.HMSET) {
             Set<String> fieldNames = row.getFieldNames(true);
             for (String fieldName : fieldNames) {
-                params.add(replaceByTag(row, fieldName));
+                params.add(replaceByTag(row, fieldName, fieldName));
             }
             return params.toArray(new String[0]);
         }
 
         String valueField = this.readableConfig.get(RedisOptions.CUSTOM_VALUE_NAME);
-        String realValueField = replaceByTag(row, valueField);
+        String realValueField = replaceByTag(row, valueField, VALUE);
         params.add(realValueField);
         return params.toArray(new String[0]);
     }
