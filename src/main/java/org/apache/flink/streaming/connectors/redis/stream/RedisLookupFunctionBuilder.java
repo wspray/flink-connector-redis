@@ -18,6 +18,7 @@ import org.apache.flink.types.Row;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -207,13 +208,13 @@ public class RedisLookupFunctionBuilder<T> {
 
     private RowTypeInfo mergeTypeInfo(RowTypeInfo rowTypeInfo,
                                       RowTypeInfo valueTypeInfo) {
-        Map<String, TypeInformation<?>> rowFields = new HashMap<>();
+        Map<String, TypeInformation<?>> rowFields = new LinkedHashMap<>();
         for (int i = 0; i < rowTypeInfo.getFieldNames().length; i++) {
             rowFields.put(rowTypeInfo.getFieldNames()[i], rowTypeInfo.getFieldTypes()[i]);
         }
 
         Map<String, String> valueOverwriteMap = configuration.get(MERGE_BY_OVERWRITE);
-        Map<String, TypeInformation<?>> valueFields = new HashMap<>();
+        Map<String, TypeInformation<?>> valueFields = new LinkedHashMap<>();
         for (int i = 0; i < valueTypeInfo.getFieldNames().length; i++) {
             String fieldName = valueTypeInfo.getFieldNames()[i];
             String overwrite = valueOverwriteMap.get(fieldName);
@@ -225,7 +226,7 @@ public class RedisLookupFunctionBuilder<T> {
             valueFields.put(fieldName, valueTypeInfo.getFieldTypes()[i]);
         }
 
-        Map<String, TypeInformation<?>> allFields = new HashMap<>();
+        Map<String, TypeInformation<?>> allFields = new LinkedHashMap<>();
         allFields.putAll(rowFields);
         allFields.putAll(valueFields);
 
