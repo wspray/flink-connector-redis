@@ -16,6 +16,7 @@ import org.apache.flink.streaming.connectors.redis.mapper.RowRedisQueryMapper;
 import org.apache.flink.types.Row;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -189,23 +190,22 @@ public class RedisSourceFunctionBuilder<T> {
 
     private void inferRowTypeInfo(RedisCommand redisCommand) {
         Map<String, TypeInformation> typeMap = new LinkedHashMap<>();
-
         if (map != null && !map.isEmpty()) {
             List<String> valueFieldNames = new ArrayList<>(map.keySet());
             for (String fieldName : valueFieldNames) {
                 typeMap.put(fieldName, map.get(fieldName));
             }
-        } else {
-            typeMap.put(VALUE, Types.STRING);
-            if (configuration.get(RedisOptions.VALUE_DATA_STRUCTURE) != RedisValueDataStructure.row) {
-                typeMap.put(KEY, Types.STRING);
+        }
 
-                if (redisCommand.name().contains("HGET")) {
-                    typeMap.put(FIELD, Types.STRING);
+        typeMap.put(VALUE, Types.STRING);
+        if (configuration.get(RedisOptions.VALUE_DATA_STRUCTURE) != RedisValueDataStructure.row) {
+            typeMap.put(KEY, Types.STRING);
 
-                } else if (redisCommand == ZSCORE || redisCommand == ZRANGEWITHSCORES) {
-                    typeMap.put(SCORE, Types.DOUBLE);
-                }
+            if (redisCommand.name().contains("HGET")) {
+                typeMap.put(FIELD, Types.STRING);
+
+            } else if (redisCommand == ZSCORE || redisCommand == ZRANGEWITHSCORES) {
+                typeMap.put(SCORE, Types.DOUBLE);
             }
         }
 
