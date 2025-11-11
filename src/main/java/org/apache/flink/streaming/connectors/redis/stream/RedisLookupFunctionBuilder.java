@@ -179,7 +179,14 @@ public class RedisLookupFunctionBuilder<T> {
     }
 
     private void inferRowTypeInfo(RedisCommand redisCommand, RowTypeInfo inputRowTypeInfo) {
-        Map<String, TypeInformation> typeMap = new HashMap<>();
+        Map<String, TypeInformation> typeMap = new LinkedHashMap<>();
+        if (map != null && !map.isEmpty()) {
+            List<String> valueFieldNames = new ArrayList<>(map.keySet());
+            for (String fieldName : valueFieldNames) {
+                typeMap.put(fieldName, map.get(fieldName));
+            }
+        }
+
         typeMap.put(VALUE, Types.STRING);
         if (configuration.get(RedisOptions.VALUE_DATA_STRUCTURE) != RedisValueDataStructure.row) {
             typeMap.put(KEY, Types.STRING);
@@ -189,13 +196,6 @@ public class RedisLookupFunctionBuilder<T> {
 
             } else if (redisCommand == ZSCORE || redisCommand == ZRANGEWITHSCORES) {
                 typeMap.put(SCORE, Types.DOUBLE);
-            }
-        }
-
-        if (map != null && !map.isEmpty()) {
-            List<String> valueFieldNames = new ArrayList<>(map.keySet());
-            for (String fieldName : valueFieldNames) {
-                typeMap.put(fieldName, map.get(fieldName));
             }
         }
 
