@@ -18,6 +18,13 @@
 
 package org.apache.flink.streaming.connectors.redis.stream;
 
+import cn.yto.flink.config.ExceptionNodeConfig;
+import cn.yto.flink.core.node.Node;
+import cn.yto.flink.functions.ExceptionEventSubscriber;
+import cn.yto.flink.model.ExceptionEvent;
+import cn.yto.flink.util.ExceptionHandleUtil;
+import cn.yto.flink.util.ExceptionStrategy;
+import com.google.common.eventbus.EventBus;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.ReadableConfig;
@@ -36,6 +43,7 @@ import org.apache.flink.streaming.connectors.redis.container.RedisCommandsContai
 import org.apache.flink.streaming.connectors.redis.container.RedisCommandsContainerBuilder;
 import org.apache.flink.streaming.connectors.redis.mapper.RedisMapper;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,12 +89,22 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
     private final RedisValueDataStructure redisValueDataStructure;
     private Cache<String, Object> cache;
 
+    private ExceptionNodeConfig exceptionNodeConfig;
+    private String streamId;
+    private String bootstrapServers;
+    private Node node;
+    private ExceptionStrategy exceptionStrategy;
+
+    private transient EventBus eventBus;
+    private transient ExceptionEventSubscriber eventSubscriber;
+
     public RedisLookupFunction(
             RedisMapper redisMapper,
             ReadableConfig readableConfig,
             FlinkConfigBase flinkConfigBase,
             Map<String, TypeInformation> dataTypes,
-            RedisJoinConfig redisJoinConfig) {
+            RedisJoinConfig redisJoinConfig,
+            ExceptionNodeConfig exceptionNodeConfig) {
         Preconditions.checkNotNull(
                 flinkConfigBase, "Redis connection pool config should not be null");
         Preconditions.checkNotNull(redisMapper, "Redis Mapper can not be null");
@@ -106,6 +124,14 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         this.redisCommand = redisCommandDescription.getRedisCommand();
 
         this.dataTypes = dataTypes;
+
+        if (exceptionNodeConfig != null) {
+            this.exceptionNodeConfig = exceptionNodeConfig;
+            this.streamId = exceptionNodeConfig.getStreamId();
+            this.bootstrapServers = exceptionNodeConfig.getBootstrapServers();
+            this.node = exceptionNodeConfig.getNode();
+            this.exceptionStrategy = exceptionNodeConfig.getExceptionStrategy();
+        }
     }
 
     @Override
@@ -113,13 +139,27 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         try {
             asyncInvokeRow(input, resultFuture);
         } catch (Exception e) {
-            resultFuture.complete(Collections.singleton(expandDefaultRow(input)));
+            handleException(input, resultFuture, e);
         }
+    }
+
+    private void handleException(Row input,
+                                 ResultFuture<Row> resultFuture,
+                                 Throwable throwable) {
+        ExceptionEvent event = ExceptionEvent.builder()
+                .timestamp(System.currentTimeMillis())
+                .node(node)
+                .row(input)
+                .exceptionStrategy(exceptionStrategy)
+                .throwable(throwable)
+                .build();
+        Row skipRow = expandDefaultRow(input);
+        ExceptionHandleUtil.handleException(eventBus, event, exceptionStrategy, throwable, resultFuture, skipRow);
     }
 
     @Override
     public void timeout(Row input, ResultFuture<Row> resultFuture) throws Exception {
-        resultFuture.complete(Collections.singleton(expandDefaultRow(input)));
+        handleException(input, resultFuture, new FlinkRuntimeException("redis lookup timeout"));
     }
 
     public void asyncInvokeRow(Row input, ResultFuture<Row> resultFuture) throws Exception {
@@ -201,7 +241,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
             } catch (Exception e) {
                 LOG.error("query redis error, retry times:{}", i, e);
                 if (i >= maxRetryTimes) {
-                    throw new RuntimeException("query redis error ", e);
+                    throw new FlinkRuntimeException("query redis error ", e);
                 }
                 Thread.sleep(500 * i);
             }
@@ -446,6 +486,13 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                         .expireAfterWrite(cacheTtl, TimeUnit.SECONDS)
                         .maximumSize(cacheMaxSize)
                         .build();
+
+        if (this.exceptionNodeConfig != null) {
+            eventBus = new EventBus(node.getId());
+            eventSubscriber = new ExceptionEventSubscriber(streamId, bootstrapServers);
+            eventBus.register(eventSubscriber);
+            eventSubscriber.open();
+        }
     }
 
     @Override
@@ -457,6 +504,10 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         if (cache != null) {
             cache.cleanUp();
             cache = null;
+        }
+
+        if (eventSubscriber != null) {
+            eventSubscriber.close();
         }
     }
 }

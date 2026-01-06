@@ -165,6 +165,38 @@ under the License.
 <!--            </exclusions>-->
 <!--            <scope>provided</scope>-->
 <!--        </dependency>-->
+        <dependency>
+            <groupId>cn.yto</groupId>
+            <artifactId>dpp-flink-core</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <artifactId>log4j-slf4j-impl</artifactId>
+                    <groupId>org.apache.logging.log4j</groupId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-api</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-1.2-api</artifactId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>servlet-api</artifactId>
+                    <groupId>javax.servlet</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>commons-logging</artifactId>
+                    <groupId>commons-logging</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
     </dependencies>
 
     <build>
@@ -318,16 +350,16 @@ under the License.
         </plugins>
     </build>
 
-<!--    <distributionManagement>-->
-<!--        <repository>-->
-<!--            <id>releases</id>-->
-<!--            <name>Internal Release Repository</name>-->
-<!--            <url>http://nexus.yto.net.cn:8081/repository/releases/</url>-->
-<!--        </repository>-->
-<!--        <snapshotRepository>-->
-<!--            <id>snapshots</id>-->
-<!--            <name>Internal Snapshot Repository</name>-->
-<!--            <url>http://nexus.yto.net.cn:8081/repository/snapshots/</url>-->
-<!--        </snapshotRepository>-->
-<!--    </distributionManagement>-->
+    <distributionManagement>
+        <repository>
+            <id>releases</id>
+            <name>Internal Release Repository</name>
+            <url>http://nexus.yto.net.cn:8081/repository/releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>snapshots</id>
+            <name>Internal Snapshot Repository</name>
+            <url>http://nexus.yto.net.cn:8081/repository/snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>

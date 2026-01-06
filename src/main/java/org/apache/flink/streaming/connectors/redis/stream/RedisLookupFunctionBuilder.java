@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.connectors.redis.stream;
 
+import cn.yto.flink.config.ExceptionNodeConfig;
 import org.apache.commons.lang3.Validate;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -17,7 +18,6 @@ import org.apache.flink.streaming.connectors.redis.mapper.RowRedisQueryMapper;
 import org.apache.flink.types.Row;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +46,8 @@ public class RedisLookupFunctionBuilder<T> {
     private RedisJoinConfig joinConfig;
     private RowTypeInfo rowTypeInfo;
 
+    private ExceptionNodeConfig exceptionNodeConfig;
+
     public static RedisLookupFunctionBuilder<Row> builder() {
         return new RedisLookupFunctionBuilder<>();
     }
@@ -57,6 +59,11 @@ public class RedisLookupFunctionBuilder<T> {
 
     public RedisLookupFunctionBuilder<T> setFlinkConfigBase(FlinkConfigBase flinkConfigBase) {
         this.flinkConfigBase = flinkConfigBase;
+        return this;
+    }
+
+    public RedisLookupFunctionBuilder<T> setExceptionNodeConfig(ExceptionNodeConfig exceptionNodeConfig) {
+        this.exceptionNodeConfig = exceptionNodeConfig;
         return this;
     }
 
@@ -171,7 +178,7 @@ public class RedisLookupFunctionBuilder<T> {
         if (joinConfig == null) {
             joinConfig = new RedisJoinConfig.Builder().build(); // no cache
         }
-        return new RedisLookupFunction(redisMapper, configuration, flinkConfigBase, map, joinConfig);
+        return new RedisLookupFunction(redisMapper, configuration, flinkConfigBase, map, joinConfig, exceptionNodeConfig);
     }
 
     public RowTypeInfo getRowTypeInfo() {

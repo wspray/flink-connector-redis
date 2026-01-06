@@ -109,7 +109,7 @@ public class DataLookUpTest extends TestRedisConfigBase {
                 .setLoadAll(true)
                 .build();
         RedisLookupFunction lookupFunction =
-                new RedisLookupFunction(redisMapper, configuration, conf, map, joinConfig);
+                new RedisLookupFunction(redisMapper, configuration, conf, map, joinConfig, null);
 
 //        configuration.set(RedisOptions.CUSTOM_FIELD_NAME, "subject");
 //        configuration.set(RedisOptions.CUSTOM_VALUE_NAME, "scope");
