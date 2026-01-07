@@ -18,13 +18,6 @@
 
 package org.apache.flink.streaming.connectors.redis.stream;
 
-import cn.yto.flink.config.ExceptionNodeConfig;
-import cn.yto.flink.core.node.Node;
-import cn.yto.flink.functions.ExceptionEventSubscriber;
-import cn.yto.flink.model.ExceptionEvent;
-import cn.yto.flink.util.ExceptionHandleUtil;
-import cn.yto.flink.util.ExceptionStrategy;
-import com.google.common.eventbus.EventBus;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.ReadableConfig;
@@ -65,7 +58,7 @@ import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.KE
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.SCORE;
 import static org.apache.flink.streaming.connectors.redis.config.RedisOptions.VALUE;
 import static org.apache.flink.streaming.connectors.redis.stream.PlaceholderReplacer.replaceByTag;
-import static org.apache.flink.streaming.connectors.redis.stream.RedisResultArrayWrapper.isJsonArray;
+import static org.apache.flink.streaming.connectors.redis.stream.RedisLookupResultArrayWrapper.isJsonArray;
 import static org.apache.flink.streaming.connectors.redis.table.RedisDynamicTableFactory.CACHE_SEPERATOR;
 
 /**
@@ -88,23 +81,14 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
     private final Map<String, TypeInformation> dataTypes;
     private final RedisValueDataStructure redisValueDataStructure;
     private Cache<String, Object> cache;
-
-    private ExceptionNodeConfig exceptionNodeConfig;
-    private String streamId;
-    private String bootstrapServers;
-    private Node node;
-    private ExceptionStrategy exceptionStrategy;
-
-    private transient EventBus eventBus;
-    private transient ExceptionEventSubscriber eventSubscriber;
+    private Runnable exceptionHandler;
 
     public RedisLookupFunction(
             RedisMapper redisMapper,
             ReadableConfig readableConfig,
             FlinkConfigBase flinkConfigBase,
             Map<String, TypeInformation> dataTypes,
-            RedisJoinConfig redisJoinConfig,
-            ExceptionNodeConfig exceptionNodeConfig) {
+            RedisJoinConfig redisJoinConfig) {
         Preconditions.checkNotNull(
                 flinkConfigBase, "Redis connection pool config should not be null");
         Preconditions.checkNotNull(redisMapper, "Redis Mapper can not be null");
@@ -124,42 +108,25 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         this.redisCommand = redisCommandDescription.getRedisCommand();
 
         this.dataTypes = dataTypes;
-
-        if (exceptionNodeConfig != null) {
-            this.exceptionNodeConfig = exceptionNodeConfig;
-            this.streamId = exceptionNodeConfig.getStreamId();
-            this.bootstrapServers = exceptionNodeConfig.getBootstrapServers();
-            this.node = exceptionNodeConfig.getNode();
-            this.exceptionStrategy = exceptionNodeConfig.getExceptionStrategy();
-        }
     }
+
+    public void setExceptionHandler(Runnable exceptionHandler) {
+        this.exceptionHandler = exceptionHandler;
+    }
+
 
     @Override
     public void asyncInvoke(Row input, ResultFuture<Row> resultFuture) {
         try {
             asyncInvokeRow(input, resultFuture);
         } catch (Exception e) {
-            handleException(input, resultFuture, e);
+            throw new FlinkRuntimeException("redis lookup error", e);
         }
-    }
-
-    private void handleException(Row input,
-                                 ResultFuture<Row> resultFuture,
-                                 Throwable throwable) {
-        ExceptionEvent event = ExceptionEvent.builder()
-                .timestamp(System.currentTimeMillis())
-                .node(node)
-                .row(input)
-                .exceptionStrategy(exceptionStrategy)
-                .throwable(throwable)
-                .build();
-        Row skipRow = expandDefaultRow(input);
-        ExceptionHandleUtil.handleException(eventBus, event, exceptionStrategy, throwable, resultFuture, skipRow);
     }
 
     @Override
     public void timeout(Row input, ResultFuture<Row> resultFuture) throws Exception {
-        handleException(input, resultFuture, new FlinkRuntimeException("redis lookup timeout"));
+        throw new FlinkRuntimeException("redis lookup timeout");
     }
 
     public void asyncInvokeRow(Row input, ResultFuture<Row> resultFuture) throws Exception {
@@ -186,7 +153,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                     if (map != null) {
                         String result = map.get(queryParameter[1]);
                         if (valueTypeJson && isJsonArray(result)) {
-                            List<Row> rows = RedisResultArrayWrapper.createRowDataForHash(
+                            List<Row> rows = RedisLookupResultArrayWrapper.createRowDataForHash(
                                     queryParameter,
                                     result,
                                     redisValueDataStructure,
@@ -197,7 +164,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                             return;
                         }
                         resultFuture.complete(Collections.singleton(
-                                mergeRow(input, RedisResultWrapper.createRowDataForHash(
+                                mergeRow(input, RedisLookupResultWrapper.createRowDataForHash(
                                         queryParameter,
                                         result,
                                         redisValueDataStructure,
@@ -238,7 +205,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                 query(input, resultFuture, queryParameter);
                 Thread.sleep(3000L);
                 break;
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 LOG.error("query redis error, retry times:{}", i, e);
                 if (i >= maxRetryTimes) {
                     throw new FlinkRuntimeException("query redis error ", e);
@@ -261,33 +228,38 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                         .get(queryParameter[0])
                         .thenAccept(
                                 result -> {
-                                    if (valueTypeJson && isJsonArray(String.valueOf(result))) {
-                                        List<Row> rows =
-                                                RedisResultArrayWrapper.createRowDataForString(
+                                    try {
+                                        if (valueTypeJson && isJsonArray(String.valueOf(result))) {
+                                            List<Row> rows =
+                                                    RedisLookupResultArrayWrapper.createRowDataForString(
+                                                            queryParameter,
+                                                            result,
+                                                            redisValueDataStructure,
+                                                            dataTypes);
+
+                                            resultFuture.complete(rows.stream()
+                                                    .map(r -> mergeRow(input, r))
+                                                    .collect(Collectors.toList()));
+                                            if (cache != null && result != null) {
+                                                cache.put(queryParameter[0], rows);
+                                            }
+                                            return;
+                                        }
+                                        Row row =
+                                                RedisLookupResultWrapper.createRowDataForString(
                                                         queryParameter,
                                                         result,
                                                         redisValueDataStructure,
                                                         dataTypes);
-
-                                        resultFuture.complete(rows.stream()
-                                                .map(r -> mergeRow(input, r))
-                                                .collect(Collectors.toList()));
+                                        resultFuture.complete(Collections.singleton(mergeRow(input, row)));
                                         if (cache != null && result != null) {
-                                            cache.put(queryParameter[0], rows);
+                                            cache.put(queryParameter[0], row);
                                         }
-                                        return;
+                                    } catch (Exception e) {
+                                        throw new FlinkRuntimeException(e);
                                     }
-                                    Row row =
-                                            RedisResultWrapper.createRowDataForString(
-                                                    queryParameter,
-                                                    result,
-                                                    redisValueDataStructure,
-                                                    dataTypes);
-                                    resultFuture.complete(Collections.singleton(mergeRow(input, row)));
-                                    if (cache != null && result != null) {
-                                        cache.put(queryParameter[0], row);
-                                    }
-                                });
+                                }
+                        );
 
                 break;
             }
@@ -298,7 +270,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                                 result -> {
                                     if (valueTypeJson && isJsonArray(String.valueOf(result))) {
                                         List<Row> rows =
-                                                RedisResultArrayWrapper.createRowDataForHash(
+                                                RedisLookupResultArrayWrapper.createRowDataForHash(
                                                         queryParameter,
                                                         result,
                                                         redisValueDataStructure,
@@ -317,7 +289,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                                         return;
                                     }
                                     Row row =
-                                            RedisResultWrapper.createRowDataForHash(
+                                            RedisLookupResultWrapper.createRowDataForHash(
                                                     queryParameter,
                                                     result,
                                                     redisValueDataStructure,
@@ -343,7 +315,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                                     cache.put(queryParameter[0], map);
                                     String result = map.get(queryParameter[1]);
                                     if (valueTypeJson && isJsonArray(result)) {
-                                        List<Row> rows = RedisResultArrayWrapper.createRowDataForHash(
+                                        List<Row> rows = RedisLookupResultArrayWrapper.createRowDataForHash(
                                                 queryParameter,
                                                 result,
                                                 redisValueDataStructure,
@@ -353,7 +325,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                                                 .collect(Collectors.toList()));
                                         return;
                                     }
-                                    Row row = RedisResultWrapper.createRowDataForHash(
+                                    Row row = RedisLookupResultWrapper.createRowDataForHash(
                                             queryParameter,
                                             result,
                                             redisValueDataStructure,
@@ -367,7 +339,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                         .thenAccept(
                                 result -> {
                                     Row row =
-                                            RedisResultWrapper.createRowDataForSortedSet(
+                                            RedisLookupResultWrapper.createRowDataForSortedSet(
                                                     queryParameter, result, redisValueDataStructure);
                                     resultFuture.complete(Collections.singleton(mergeRow(input, row)));
                                     if (cache != null && result != null) {
@@ -433,7 +405,7 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         return outRow;
     }
 
-    private Row expandDefaultRow(Row input) {
+    public Row expandDefaultRow(Row input) {
         Row outRow = Row.withNames();
         outRow.setField(VALUE, null);
         if (redisValueDataStructure != RedisValueDataStructure.row) {
@@ -486,13 +458,6 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
                         .expireAfterWrite(cacheTtl, TimeUnit.SECONDS)
                         .maximumSize(cacheMaxSize)
                         .build();
-
-        if (this.exceptionNodeConfig != null) {
-            eventBus = new EventBus(node.getId());
-            eventSubscriber = new ExceptionEventSubscriber(streamId, bootstrapServers);
-            eventBus.register(eventSubscriber);
-            eventSubscriber.open();
-        }
     }
 
     @Override
@@ -504,10 +469,6 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         if (cache != null) {
             cache.cleanUp();
             cache = null;
-        }
-
-        if (eventSubscriber != null) {
-            eventSubscriber.close();
         }
     }
 }

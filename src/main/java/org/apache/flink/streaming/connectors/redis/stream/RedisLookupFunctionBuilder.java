@@ -1,6 +1,5 @@
 package org.apache.flink.streaming.connectors.redis.stream;
 
-import cn.yto.flink.config.ExceptionNodeConfig;
 import org.apache.commons.lang3.Validate;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -39,14 +38,12 @@ import static org.apache.flink.streaming.connectors.redis.config.RedisValidator.
 
 public class RedisLookupFunctionBuilder<T> {
 
-    private RowRedisQueryMapper redisMapper;
-    private Configuration configuration = new Configuration();
-    private FlinkConfigBase flinkConfigBase;
-    private Map<String, TypeInformation> map;
-    private RedisJoinConfig joinConfig;
-    private RowTypeInfo rowTypeInfo;
-
-    private ExceptionNodeConfig exceptionNodeConfig;
+    public RowRedisQueryMapper redisMapper;
+    public Configuration configuration = new Configuration();
+    public FlinkConfigBase flinkConfigBase;
+    public Map<String, TypeInformation> map;
+    public RedisJoinConfig joinConfig;
+    public RowTypeInfo rowTypeInfo;
 
     public static RedisLookupFunctionBuilder<Row> builder() {
         return new RedisLookupFunctionBuilder<>();
@@ -59,11 +56,6 @@ public class RedisLookupFunctionBuilder<T> {
 
     public RedisLookupFunctionBuilder<T> setFlinkConfigBase(FlinkConfigBase flinkConfigBase) {
         this.flinkConfigBase = flinkConfigBase;
-        return this;
-    }
-
-    public RedisLookupFunctionBuilder<T> setExceptionNodeConfig(ExceptionNodeConfig exceptionNodeConfig) {
-        this.exceptionNodeConfig = exceptionNodeConfig;
         return this;
     }
 
@@ -178,7 +170,7 @@ public class RedisLookupFunctionBuilder<T> {
         if (joinConfig == null) {
             joinConfig = new RedisJoinConfig.Builder().build(); // no cache
         }
-        return new RedisLookupFunction(redisMapper, configuration, flinkConfigBase, map, joinConfig, exceptionNodeConfig);
+        return new RedisLookupFunction(redisMapper, configuration, flinkConfigBase, map, joinConfig);
     }
 
     public RowTypeInfo getRowTypeInfo() {
