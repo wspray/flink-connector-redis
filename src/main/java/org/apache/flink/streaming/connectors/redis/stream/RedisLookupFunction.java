@@ -196,7 +196,6 @@ public class RedisLookupFunction extends RichAsyncFunction<Row, Row> {
         for (int i = 0; i <= maxRetryTimes; i++) {
             try {
                 query(input, resultFuture, queryParameter);
-                Thread.sleep(3000L);
                 break;
             } catch (Exception e) {
                 LOG.error("query redis error, retry times:{}", i, e);
